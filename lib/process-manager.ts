@@ -17,6 +17,22 @@ const groupRunIdToPids = new Map<number, number[]>();
 type SSEWriter = (data: string, streamType: "stdout" | "stderr") => void;
 const sseWriters = new Map<number, Set<SSEWriter>>();
 
+let onRunStateChange: (() => void) | null = null;
+let onLogChunk: ((runId: number, content: string, streamType: "stdout" | "stderr") => void) | null = null;
+let onLogFinished: ((runId: number) => void) | null = null;
+
+export function setRunStateChangeCallback(cb: () => void): void {
+  onRunStateChange = cb;
+}
+
+export function setLogHooks(hooks: {
+  onChunk: (runId: number, content: string, streamType: "stdout" | "stderr") => void;
+  onFinished: (runId: number) => void;
+}): void {
+  onLogChunk = hooks.onChunk;
+  onLogFinished = hooks.onFinished;
+}
+
 export function registerSSEWriter(runId: number, writer: SSEWriter): () => void {
   if (!sseWriters.has(runId)) {
     sseWriters.set(runId, new Set());
@@ -37,6 +53,7 @@ function emitLogChunk(runId: number, content: string, streamType: "stdout" | "st
   if (writers) {
     writers.forEach((w) => w(content, streamType));
   }
+  onLogChunk?.(runId, content, streamType);
 }
 
 function resolveCwd(cwd: string): string {
@@ -80,6 +97,7 @@ export function spawnCommand(
   }
 
   db.prepare("UPDATE runs SET pid = ? WHERE id = ?").run(pid, runId);
+  onRunStateChange?.();
 
   child.stdout?.on("data", (data: Buffer) => {
     emitLogChunk(runId, data.toString(), "stdout");
@@ -133,8 +151,10 @@ export function spawnCommand(
       }
     }
 
+    onLogFinished?.(runId);
     sseWriters.get(runId)?.forEach((w) => w("[run finished]", "stdout"));
     sseWriters.delete(runId);
+    onRunStateChange?.();
   });
 
   return pid;

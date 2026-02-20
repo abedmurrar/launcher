@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { z } from "zod";
-
-const updateGroupSchema = z.object({
-  name: z.string().min(1),
-});
+import { updateGroup, deleteGroup } from "@/lib/actions";
 
 export async function GET(
   _request: NextRequest,
@@ -47,22 +43,15 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const id = Number((await params).id);
-  if (Number.isNaN(id)) {
-    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
-  }
   const body = await request.json();
-  const parsed = updateGroupSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  const result = updateGroup(id, body);
+  if (!result.success) {
+    return NextResponse.json(
+      { error: result.error },
+      { status: (result.code as number) ?? 400 }
+    );
   }
-  const db = getDb();
-  const existing = db.prepare("SELECT id FROM groups WHERE id = ?").get(id);
-  if (!existing) {
-    return NextResponse.json({ error: "Group not found" }, { status: 404 });
-  }
-  db.prepare("UPDATE groups SET name = ? WHERE id = ?").run(parsed.data.name, id);
-  const row = db.prepare("SELECT * FROM groups WHERE id = ?").get(id) as Record<string, unknown>;
-  return NextResponse.json(row);
+  return NextResponse.json(result.data);
 }
 
 export async function DELETE(
@@ -70,13 +59,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const id = Number((await params).id);
-  if (Number.isNaN(id)) {
-    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  const result = deleteGroup(id);
+  if (!result.success) {
+    return NextResponse.json(
+      { error: result.error },
+      { status: (result.code as number) ?? 404 }
+    );
   }
-  const db = getDb();
-  const result = db.prepare("DELETE FROM groups WHERE id = ?").run(id);
-  if (result.changes === 0) {
-    return NextResponse.json({ error: "Group not found" }, { status: 404 });
-  }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json(result.data);
 }

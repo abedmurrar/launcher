@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useWs } from "@/context/ws-context";
 
 type LogViewerProps = {
   runId: number;
@@ -11,54 +12,25 @@ export function LogViewer({ runId, onClose }: LogViewerProps) {
   const [logs, setLogs] = useState<{ streamType: "stdout" | "stderr"; data: string }[]>([]);
   const [live, setLive] = useState(true);
   const preRef = useRef<HTMLPreElement>(null);
+  const { subscribeToLogs, unsubscribeFromLogs } = useWs();
 
   useEffect(() => {
-    let cancelled = false;
-    const ac = new AbortController();
-
-    (async () => {
-      try {
-        const url = `/api/runs/${runId}/logs/stream`;
-        const res = await fetch(url, { signal: ac.signal });
-        if (!res.body || cancelled) return;
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (cancelled) return;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const payload = JSON.parse(line.slice(6));
-                if (payload.event === "finished") {
-                  if (!cancelled) setLive(false);
-                  break;
-                }
-                if (payload.streamType && payload.data !== undefined && !cancelled) {
-                  setLogs((prev) => [...prev, { streamType: payload.streamType, data: payload.data }]);
-                }
-              } catch {
-                // ignore parse errors
-              }
-            }
-          }
-        }
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
-        throw err;
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      ac.abort();
-    };
-  }, [runId]);
+    subscribeToLogs(runId, {
+      onHistory: (chunks) => {
+        setLogs(
+          chunks.map((c) => ({
+            streamType: c.stream_type as "stdout" | "stderr",
+            data: c.content,
+          }))
+        );
+      },
+      onChunk: (streamType, data) => {
+        setLogs((prev) => [...prev, { streamType, data }]);
+      },
+      onFinished: () => setLive(false),
+    });
+    return () => unsubscribeFromLogs(runId);
+  }, [runId, subscribeToLogs, unsubscribeFromLogs]);
 
   useEffect(() => {
     if (preRef.current) preRef.current.scrollTop = preRef.current.scrollHeight;

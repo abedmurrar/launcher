@@ -1,121 +1,57 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useWs } from "@/context/ws-context";
 import { RunControls } from "./RunControls";
 import { CommandForm, type CommandFormData } from "./CommandForm";
 import { LogViewer } from "./LogViewer";
 
-type CommandItem = {
-  id: number;
-  name: string;
-  command: string;
-  cwd: string;
-  env: Record<string, string>;
-  created_at: string;
-  updated_at: string;
-  last_run_at: string | null;
-  last_exit_code: number | null;
-  running: boolean;
-  run_id?: number;
-  last_run_id?: number;
-  pid?: number;
-};
-
 export function CommandList() {
-  const [commands, setCommands] = useState<CommandItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { commands, initialLoadDone, sendAction } = useWs();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [logRunId, setLogRunId] = useState<number | null>(null);
 
-  const fetchCommands = useCallback(async () => {
-    const res = await fetch("/api/commands");
-    if (res.ok) {
-      const data = await res.json();
-      setCommands(data);
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    fetchCommands();
-    const t = setInterval(fetchCommands, 3000);
-    return () => clearInterval(t);
-  }, [fetchCommands]);
-
   const handleRun = async (id: number) => {
-    const res = await fetch(`/api/commands/${id}/run`, { method: "POST" });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Failed to run");
-      return;
-    }
-    await fetchCommands();
+    const result = await sendAction("run", { commandId: id });
+    if (!result.success) alert(result.error ?? "Failed to run");
   };
 
   const handleStop = async (id: number, runId?: number) => {
-    const url = runId != null ? `/api/commands/${id}/stop?runId=${runId}` : `/api/commands/${id}/stop`;
-    const res = await fetch(url, { method: "POST" });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Failed to stop");
-      return;
-    }
-    await fetchCommands();
+    const result = await sendAction("stop", { commandId: id, ...(runId != null ? { runId } : {}) });
+    if (!result.success) alert(result.error ?? "Failed to stop");
   };
 
   const handleRestart = async (id: number) => {
-    const res = await fetch(`/api/commands/${id}/restart`, { method: "POST" });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Failed to restart");
-      return;
-    }
-    await fetchCommands();
+    const result = await sendAction("restart", { commandId: id });
+    if (!result.success) alert(result.error ?? "Failed to restart");
   };
 
   const handleCreate = async (data: CommandFormData) => {
-    const res = await fetch("/api/commands", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Failed to create");
+    const result = await sendAction("create_command", { data });
+    if (!result.success) {
+      alert(result.error ?? "Failed to create");
       return;
     }
     setShowForm(false);
-    await fetchCommands();
   };
 
   const handleUpdate = async (id: number, data: CommandFormData) => {
-    const res = await fetch(`/api/commands/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Failed to update");
+    const result = await sendAction("update_command", { id, data });
+    if (!result.success) {
+      alert(result.error ?? "Failed to update");
       return;
     }
     setEditingId(null);
-    await fetchCommands();
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this command?")) return;
-    const res = await fetch(`/api/commands/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Failed to delete");
-      return;
-    }
-    await fetchCommands();
+    const result = await sendAction("delete_command", { id });
+    if (!result.success) alert(result.error ?? "Failed to delete");
   };
 
-  if (loading) return <p className="text-zinc-500">Loading commands…</p>;
+  if (!initialLoadDone) return <p className="text-zinc-500">Loading…</p>;
 
   return (
     <div className="space-y-4">

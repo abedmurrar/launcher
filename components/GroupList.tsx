@@ -1,116 +1,50 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useWs } from "@/context/ws-context";
 import { GroupForm } from "./GroupForm";
 
-type CommandItem = { id: number; name: string };
-
-type GroupItem = {
-  id: number;
-  name: string;
-  created_at: string;
-  command_ids: number[];
-  last_run?: { id: number; started_at: string; finished_at: string | null; status: string };
-  running: boolean;
-  running_group_run_id?: number;
-};
-
 export function GroupList() {
-  const [groups, setGroups] = useState<GroupItem[]>([]);
-  const [commands, setCommands] = useState<CommandItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { groups, commands, initialLoadDone, sendAction } = useWs();
+  const commandsForSelect = commands.map((c) => ({ id: c.id, name: c.name }));
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  const fetchGroups = useCallback(async () => {
-    const res = await fetch("/api/groups");
-    if (res.ok) setGroups(await res.json());
-  }, []);
-
-  const fetchCommands = useCallback(async () => {
-    const res = await fetch("/api/commands");
-    if (res.ok) {
-      const list = await res.json();
-      setCommands(list.map((c: { id: number; name: string }) => ({ id: c.id, name: c.name })));
-    }
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      await Promise.all([fetchGroups(), fetchCommands()]);
-      setLoading(false);
-    })();
-    const t = setInterval(fetchGroups, 3000);
-    return () => clearInterval(t);
-  }, [fetchGroups, fetchCommands]);
-
   const handleCreate = async (name: string) => {
-    const res = await fetch("/api/groups", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Failed to create");
+    const result = await sendAction("create_group", { name });
+    if (!result.success) {
+      alert(result.error ?? "Failed to create");
       return;
     }
     setShowForm(false);
-    await fetchGroups();
   };
 
   const handleUpdateName = async (id: number, name: string) => {
-    const res = await fetch(`/api/groups/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Failed to update");
+    const result = await sendAction("update_group", { id, data: { name } });
+    if (!result.success) {
+      alert(result.error ?? "Failed to update");
       return;
     }
     setEditingId(null);
-    await fetchGroups();
   };
 
   const handleSetCommands = async (id: number, commandIds: number[]) => {
-    const res = await fetch(`/api/groups/${id}/commands`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ commandIds }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Failed to update commands");
-      return;
-    }
-    await fetchGroups();
+    const result = await sendAction("set_group_commands", { id, data: { commandIds } });
+    if (!result.success) alert(result.error ?? "Failed to update commands");
   };
 
   const handleRun = async (id: number) => {
-    const res = await fetch(`/api/groups/${id}/run`, { method: "POST" });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Failed to run group");
-      return;
-    }
-    await fetchGroups();
+    const result = await sendAction("run_group", { groupId: id });
+    if (!result.success) alert(result.error ?? "Failed to run group");
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this group?")) return;
-    const res = await fetch(`/api/groups/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Failed to delete");
-      return;
-    }
-    await fetchGroups();
+    const result = await sendAction("delete_group", { id });
+    if (!result.success) alert(result.error ?? "Failed to delete");
   };
 
-  if (loading) return <p className="text-zinc-500">Loading…</p>;
+  if (!initialLoadDone) return <p className="text-zinc-500">Loading…</p>;
 
   return (
     <div className="space-y-4">
@@ -179,7 +113,7 @@ export function GroupList() {
                   Commands: {g.command_ids.length === 0
                     ? "none"
                     : g.command_ids
-                        .map((cid) => commands.find((c) => c.id === cid)?.name ?? `#${cid}`)
+                        .map((cid) => commandsForSelect.find((c) => c.id === cid)?.name ?? `#${cid}`)
                         .join(", ")}
                 </p>
                 {g.last_run && (
@@ -201,7 +135,7 @@ export function GroupList() {
                       }}
                       className="w-full min-h-[80px] px-2 py-1 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm"
                     >
-                      {commands.map((c) => (
+                      {commandsForSelect.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
                         </option>
