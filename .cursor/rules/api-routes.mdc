@@ -1,0 +1,14 @@
+---
+description: API Route Handlers and backend patterns
+globs: app/api/**/*.ts
+alwaysApply: false
+---
+
+# API routes (Route Handlers)
+
+- Use **Route Handlers** in `app/api/` (e.g. `route.ts`). Return `Response.json()` or `new Response()` with appropriate status.
+- **No Edge**: Do not export `runtime = 'edge'`. Default Node runtime is required for `child_process` and `better-sqlite3`.
+- **DB**: Import the shared DB from `lib/db.ts`. Use `db.prepare('...').run()`, `.get()`, `.all()` as needed. Keep queries in route or in small helpers.
+- **Process manager**: Import from `lib/process-manager.ts` for spawn, stop, restart, and group run. Do not spawn processes outside this module.
+- **Validation**: Use zod to parse and validate request bodies (e.g. `z.object({ name: z.string(), command: z.string() }).parse(await request.json())`) and return 400 with a clear message on failure.
+- **SSE**: For log stream, use `Content-Type: text/event-stream` and a `TransformStream`; write events and append the same chunks to `log_chunks` in the process manager.

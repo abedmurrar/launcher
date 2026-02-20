@@ -1,0 +1,12 @@
+---
+description: React and frontend patterns for the launcher UI
+globs: app/**/*.tsx
+alwaysApply: false
+---
+
+# Frontend (React / App Router)
+
+- Use **App Router**: `app/page.tsx` for dashboard; `app/commands/`, `app/groups/` for list and forms. Use Server Components by default; add `"use client"` only where needed (state, events, SSE).
+- **API calls**: Use `fetch()` to `/api/commands`, `/api/groups`, `/api/commands/[id]/run`, etc. For live logs, open an `EventSource` to `GET /api/runs/[runId]/logs/stream` and append to a log viewer.
+- **UI**: Tailwind 4 for styling. Show commands/groups with Run, Stop, Restart, Edit, Delete, View logs. Show running state and last run status; support “Run group” and reflect “one failed → all stopped.”
+- **Forms**: Command form: name, command, cwd, env (key/value or text). Group form: name, member commands (multiselect), optional reorder. Validate before submit; show loading and errors.

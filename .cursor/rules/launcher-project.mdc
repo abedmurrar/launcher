@@ -1,0 +1,12 @@
+---
+description: Core conventions for the browser-based command launcher project
+alwaysApply: true
+---
+
+# Launcher project conventions
+
+- **Stack**: Next.js 16 (App Router), React 19, Tailwind 4, TypeScript. SQLite via better-sqlite3; optional zod for validation.
+- **Runtime**: All process spawning and DB access run in **Node.js** only. Do not use Edge runtime for any route that uses `child_process` or `better-sqlite3`.
+- **Security**: App is for local use only (localhost). Validate `cwd` (e.g. resolve to real path, ensure under allowed base). Do not expose without auth.
+- **Data**: SQLite in `./data/launcher.db`; schema and init in `lib/db.ts`. Use a single shared DB connection/module for API routes.
+- **Processes**: Spawn and PID tracking in `lib/process-manager.ts`. Stream stdout/stderr to both SQLite (`log_chunks`) and SSE; support run/stop/restart and group runs (parallel start, kill all on first failure).
