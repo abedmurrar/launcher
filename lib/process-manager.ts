@@ -66,6 +66,8 @@ export function spawnCommand(
     shell: true,
     cwd: resolvedCwd,
     env: envWithBase,
+    // So the shell and all its children share a process group we can kill together (Unix).
+    detached: process.platform !== "win32",
   });
 
   const pid = child.pid ?? 0;
@@ -142,13 +144,7 @@ function killGroupRun(groupRunId: number) {
   const pids = groupRunIdToPids.get(groupRunId);
   const db = getDb();
   if (pids) {
-    pids.forEach((p) => {
-      try {
-        process.kill(p, "SIGTERM");
-      } catch {
-        // already dead
-      }
-    });
+    pids.forEach((p) => killProcessGroup(p, "SIGTERM"));
     groupRunIdToPids.delete(groupRunId);
   }
   db.prepare(
@@ -159,24 +155,32 @@ function killGroupRun(groupRunId: number) {
   ).run(groupRunId);
 }
 
+function killProcessGroup(pid: number, signal: NodeJS.Signals | number): boolean {
+  try {
+    if (process.platform !== "win32") {
+      // Kill the whole process group (shell + children); -pid = process group led by pid.
+      process.kill(-pid, signal);
+    } else {
+      process.kill(pid, signal);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function stopRun(runId: number): boolean {
   const pid = runIdToPid.get(runId);
   if (pid !== undefined) {
     const record = pidMap.get(pid);
     if (record?.childProcess) {
-      record.childProcess.kill("SIGTERM");
-      return true;
+      return killProcessGroup(pid, "SIGTERM");
     }
   }
   const db = getDb();
   const row = db.prepare("SELECT pid FROM runs WHERE id = ? AND status = 'running'").get(runId) as { pid: number } | undefined;
   if (row?.pid) {
-    try {
-      process.kill(row.pid, "SIGTERM");
-      return true;
-    } catch {
-      return false;
-    }
+    return killProcessGroup(row.pid, "SIGTERM");
   }
   return false;
 }
@@ -188,6 +192,47 @@ export function stopByCommandId(commandId: number): boolean {
     .get(commandId) as { id: number } | undefined;
   if (row) return stopRun(row.id);
   return false;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Stops the running command (if any) and waits for the process to exit before resolving.
+ * Uses SIGTERM first; if still running after timeoutMs, sends SIGKILL.
+ * @param timeoutMs Max time to wait for exit (default 10000). 0 means no timeout (wait indefinitely).
+ */
+export function stopByCommandIdAndWait(
+  commandId: number,
+  timeoutMs: number = 10_000
+): Promise<void> {
+  const runId = getRunIdForCommand(commandId);
+  if (runId === null) return Promise.resolve();
+
+  stopRun(runId);
+
+  return new Promise((resolve) => {
+    const pollIntervalMs = 50;
+    const deadline = timeoutMs > 0 ? Date.now() + timeoutMs : null;
+
+    const check = () => {
+      if (!runIdToPid.has(runId)) {
+        resolve();
+        return;
+      }
+      if (deadline !== null && Date.now() >= deadline) {
+        const pid = runIdToPid.get(runId);
+        if (pid !== undefined) {
+          killProcessGroup(pid, "SIGKILL");
+        }
+        resolve();
+        return;
+      }
+      setTimeout(check, pollIntervalMs);
+    };
+    check();
+  });
 }
 
 export function getRunningRunIds(): number[] {

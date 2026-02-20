@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { spawnCommand, stopByCommandId, getRunIdForCommand } from "@/lib/process-manager";
+import { spawnCommand, stopByCommandIdAndWait } from "@/lib/process-manager";
 
 export async function POST(
   _request: NextRequest,
@@ -21,7 +21,7 @@ export async function POST(
   if (!cmd) {
     return NextResponse.json({ error: "Command not found" }, { status: 404 });
   }
-  stopByCommandId(commandId);
+  await stopByCommandIdAndWait(commandId);
   const env = typeof cmd.env === "string" ? (JSON.parse(cmd.env || "{}") as Record<string, string>) : {};
   const runResult = db
     .prepare("INSERT INTO runs (command_id, status) VALUES (?, 'running')")
