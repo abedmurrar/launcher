@@ -20,14 +20,15 @@ import type {
 } from "./types";
 import {
   createHttpActionSender,
-  createWebSocketActionSender,
+  createSocketIoActionSender,
 } from "./adapters";
 import { fetchAction } from "./http-fallback";
 import { handleIncomingMessage } from "./message-handler";
-import { useWebSocketConnection } from "./use-websocket-connection";
+import { useSocketConnection } from "./use-socket-connection";
 import { useInitialLoadFallback } from "./use-initial-load-fallback";
 import { usePollingWhenDisconnected } from "./use-polling-when-disconnected";
 import { ACTION_TIMEOUT_MS } from "./constants";
+import type { Socket } from "socket.io-client";
 
 const WsContext = createContext<WsContextValue | null>(null);
 
@@ -38,7 +39,7 @@ export function WsProvider({ children }: { children: ReactNode }) {
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
 
-  const webSocketRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const logSubscribersRef = useRef<Map<number, LogCallbacks>>(new Map());
   const pendingActionsRef = useRef<
     Map<
@@ -50,17 +51,7 @@ export function WsProvider({ children }: { children: ReactNode }) {
       }
     >
   >(new Map());
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const connectionErrorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
-
-  const sendOverWebSocket = useCallback((message: unknown) => {
-    const webSocket = webSocketRef.current;
-    if (webSocket?.readyState === WebSocket.OPEN) {
-      webSocket.send(JSON.stringify(message));
-    }
-  }, []);
+  const connectionErrorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onListsUpdated = useCallback(
     (commandsList: CommandListItem[], groupsList: GroupListItem[]) => {
@@ -75,46 +66,39 @@ export function WsProvider({ children }: { children: ReactNode }) {
     [onListsUpdated]
   );
 
-  const webSocketActionSenderRef = useRef<((actionType: string, payload: Record<string, unknown>) => Promise<ActionResult>) | null>(null);
+  const socketActionSenderRef = useRef<
+    ((actionType: string, payload: Record<string, unknown>) => Promise<ActionResult>) | null
+  >(null);
 
   useLayoutEffect(() => {
-    webSocketActionSenderRef.current = createWebSocketActionSender({
-      sendOverWebSocket,
+    socketActionSenderRef.current = createSocketIoActionSender({
+      getSocket: () => socketRef.current,
       getPendingActions: () => pendingActionsRef.current,
       timeoutMs: ACTION_TIMEOUT_MS,
       fallbackSender: httpActionSender,
     });
-  }, [sendOverWebSocket, httpActionSender]);
+  }, [httpActionSender]);
 
   const sendAction = useCallback(
     (actionType: string, payload: Record<string, unknown>): Promise<ActionResult> => {
-      const webSocket = webSocketRef.current;
-      if (
-        webSocket == null ||
-        webSocket.readyState !== WebSocket.OPEN
-      ) {
+      const socket = socketRef.current;
+      if (socket == null || !socket.connected) {
         return httpActionSender(actionType, payload);
       }
-      return webSocketActionSenderRef.current!(actionType, payload);
+      return socketActionSenderRef.current!(actionType, payload);
     },
     [httpActionSender]
   );
 
-  const subscribeToLogs = useCallback(
-    (runId: number, callbacks: LogCallbacks) => {
-      logSubscribersRef.current.set(runId, callbacks);
-      sendOverWebSocket({ type: "subscribe_logs", runId });
-    },
-    [sendOverWebSocket]
-  );
+  const subscribeToLogs = useCallback((runId: number, callbacks: LogCallbacks) => {
+    logSubscribersRef.current.set(runId, callbacks);
+    socketRef.current?.emit("subscribe_logs", runId);
+  }, []);
 
-  const unsubscribeFromLogs = useCallback(
-    (runId: number) => {
-      logSubscribersRef.current.delete(runId);
-      sendOverWebSocket({ type: "unsubscribe_logs", runId });
-    },
-    [sendOverWebSocket]
-  );
+  const unsubscribeFromLogs = useCallback((runId: number) => {
+    logSubscribersRef.current.delete(runId);
+    socketRef.current?.emit("unsubscribe_logs", runId);
+  }, []);
 
   const doHttpAction = useCallback(
     (actionType: string, payload: Record<string, unknown>) =>
@@ -137,9 +121,8 @@ export function WsProvider({ children }: { children: ReactNode }) {
     [doHttpAction]
   );
 
-  useWebSocketConnection({
-    webSocketRef,
-    reconnectTimeoutRef,
+  useSocketConnection({
+    socketRef,
     connectionErrorTimeoutRef,
     setReady,
     setConnectionError,

@@ -1,4 +1,4 @@
-import type { WebSocket } from "ws";
+import type { Socket } from "socket.io";
 import {
   sendInitialDump,
   subscribeLogs,
@@ -18,36 +18,33 @@ export type IncomingMessage = {
   commandIds?: number[];
 };
 
-export function parseIncomingMessage(raw: Buffer | string): IncomingMessage | null {
-  try {
-    return JSON.parse(raw.toString()) as IncomingMessage;
-  } catch {
-    return null;
-  }
-}
+export function handleSocketConnection(socket: Socket): void {
+  socket.on("initial", () => {
+    sendInitialDump(socket);
+  });
 
-export function handleWebSocketMessage(ws: WebSocket, raw: Buffer | string): void {
-  const msg = parseIncomingMessage(raw);
-  if (!msg?.type) return;
+  socket.on("subscribe_logs", (runId: unknown) => {
+    if (typeof runId === "number") {
+      subscribeLogs(socket, runId);
+    }
+  });
 
-  switch (msg.type) {
-    case "initial":
-      sendInitialDump(ws);
-      break;
-    case "subscribe_logs":
-      if (typeof msg.runId === "number") {
-        subscribeLogs(ws, msg.runId);
-      }
-      break;
-    case "unsubscribe_logs":
-      if (typeof msg.runId === "number") {
-        unsubscribeLogs(ws, msg.runId);
-      }
-      break;
-    default:
-      if (isActionType(msg.type)) {
-        handleAction(ws, msg.type, msg.requestId, msg as Record<string, unknown>);
-      }
-      break;
-  }
+  socket.on("unsubscribe_logs", (runId: unknown) => {
+    if (typeof runId === "number") {
+      unsubscribeLogs(socket, runId);
+    }
+  });
+
+  socket.on("action", (payload: unknown) => {
+    const msg = payload as IncomingMessage;
+    if (!msg || typeof msg.type !== "string") return;
+    if (isActionType(msg.type)) {
+      handleAction(
+        socket,
+        msg.type,
+        msg.requestId,
+        msg as Record<string, unknown>
+      );
+    }
+  });
 }

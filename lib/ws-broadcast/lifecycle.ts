@@ -1,24 +1,24 @@
-import type { WebSocket } from "ws";
+import type { Socket } from "socket.io";
 import { clients, logSubscribers } from "./clients";
 import { sendLogHistoryToClient } from "./log-stream";
 
-export function registerClient(ws: WebSocket): void {
-  clients.add(ws);
+export function registerClient(socket: Socket): void {
+  clients.add(socket);
 }
 
-export function unregisterClient(ws: WebSocket): void {
-  clients.delete(ws);
-  logSubscribers.forEach((subs) => subs.delete(ws));
+export function unregisterClient(socket: Socket): void {
+  clients.delete(socket);
+  logSubscribers.forEach((subs) => subs.delete(socket));
 }
 
-export function subscribeLogs(ws: WebSocket, runId: number): void {
+export function subscribeLogs(socket: Socket, runId: number): void {
   if (!logSubscribers.has(runId)) {
     logSubscribers.set(runId, new Set());
   }
-  logSubscribers.get(runId)!.add(ws);
-  sendLogHistoryToClient(ws, runId);
+  logSubscribers.get(runId)!.add(socket);
+  sendLogHistoryToClient(socket, runId);
 }
 
-export function unsubscribeLogs(ws: WebSocket, runId: number): void {
-  logSubscribers.get(runId)?.delete(ws);
+export function unsubscribeLogs(socket: Socket, runId: number): void {
+  logSubscribers.get(runId)?.delete(socket);
 }

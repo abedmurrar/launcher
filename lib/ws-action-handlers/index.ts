@@ -1,4 +1,4 @@
-import type { WebSocket } from "ws";
+import type { Socket } from "socket.io";
 import type { ActionType, ActionPayload, ActionResult } from "./types";
 import { isActionType, COMMAND_ACTIONS_LIST } from "./types";
 import { sendResult } from "./reply";
@@ -18,18 +18,18 @@ export {
 } from "./types";
 
 export async function handleAction(
-  ws: WebSocket,
+  socket: Socket,
   type: ActionType,
   requestId: string | undefined,
   payload: ActionPayload
 ): Promise<void> {
-  const reply = (result: ActionResult) => sendResult(ws, type, requestId, result);
+  const reply = (result: ActionResult) => sendResult(socket, type, requestId, result);
 
   try {
     if ((COMMAND_ACTIONS_LIST as readonly string[]).includes(type)) {
-      handleCommandAction(ws, type, requestId, payload, reply);
+      handleCommandAction(socket, type, requestId, payload, reply);
     } else {
-      handleGroupAction(ws, type, requestId, payload, reply);
+      handleGroupAction(socket, type, requestId, payload, reply);
     }
   } catch (err) {
     reply(

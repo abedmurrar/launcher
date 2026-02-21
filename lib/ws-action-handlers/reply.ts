@@ -1,17 +1,18 @@
-import type { WebSocket } from "ws";
-import { sendToClient } from "@/lib/ws-broadcast";
+import type { Socket } from "socket.io";
 import type { ActionPayload, ActionResult } from "./types";
 
-const WS_OPEN = 1;
-
 export function sendResult(
-  ws: WebSocket,
-  type: string,
+  socket: Socket,
+  _type: string,
   requestId: string | undefined,
   result: ActionResult
 ): void {
-  if (ws.readyState !== WS_OPEN) return;
-  sendToClient(ws, { type: `${type}_result`, requestId, ...result });
+  if (!socket.connected) return;
+  try {
+    socket.emit("action_result", { requestId, ...result });
+  } catch {
+    // ignore
+  }
 }
 
 export function parseId(value: unknown): number {

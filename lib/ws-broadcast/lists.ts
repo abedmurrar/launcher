@@ -1,30 +1,29 @@
-import type { WebSocket } from "ws";
+import type { Socket } from "socket.io";
 import { buildCommandsList } from "@/lib/commands-list";
 import { buildGroupsList } from "@/lib/groups-list";
 import { clients } from "./clients";
 import { send, broadcast } from "./send";
-import { WsMessageFactory } from "./message-factory";
 
 function onRunStateChange(): void {
-  broadcast(clients, WsMessageFactory.commands(buildCommandsList()));
-  broadcast(clients, WsMessageFactory.groups(buildGroupsList()));
+  broadcast(clients, "commands", buildCommandsList());
+  broadcast(clients, "groups", buildGroupsList());
 }
 
 export function broadcastCommands(): void {
-  broadcast(clients, WsMessageFactory.commands(buildCommandsList()));
+  broadcast(clients, "commands", buildCommandsList());
 }
 
 export function broadcastGroups(): void {
-  broadcast(clients, WsMessageFactory.groups(buildGroupsList()));
+  broadcast(clients, "groups", buildGroupsList());
 }
 
-export function sendInitialDump(ws: WebSocket): void {
+export function sendInitialDump(socket: Socket): void {
   try {
-    send(ws, WsMessageFactory.commands(buildCommandsList()));
-    send(ws, WsMessageFactory.groups(buildGroupsList()));
+    send(socket, "commands", buildCommandsList());
+    send(socket, "groups", buildGroupsList());
   } catch {
-    send(ws, WsMessageFactory.commands([]));
-    send(ws, WsMessageFactory.groups([]));
+    send(socket, "commands", []);
+    send(socket, "groups", []);
   }
 }
 

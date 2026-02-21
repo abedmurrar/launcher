@@ -1,20 +1,18 @@
-import type { WebSocket } from "ws";
+import type { Socket } from "socket.io";
 
-const WS_OPEN = 1;
-
-export function send(ws: WebSocket, payload: unknown): void {
-  if (ws.readyState !== WS_OPEN) return;
+export function send(socket: Socket, event: string, payload: unknown): void {
+  if (!socket.connected) return;
   try {
-    ws.send(JSON.stringify(payload));
+    socket.emit(event, payload);
   } catch {
     // ignore
   }
 }
 
-export function sendToClient(ws: WebSocket, payload: unknown): void {
-  send(ws, payload);
+export function sendToClient(socket: Socket, event: string, payload: unknown): void {
+  send(socket, event, payload);
 }
 
-export function broadcast(clients: Set<WebSocket>, payload: unknown): void {
-  clients.forEach((ws) => send(ws, payload));
+export function broadcast(clients: Set<Socket>, event: string, payload: unknown): void {
+  clients.forEach((socket) => send(socket, event, payload));
 }

@@ -1,4 +1,4 @@
-import type { WebSocket } from "ws";
+import type { Socket } from "socket.io";
 import {
   createGroup,
   updateGroup,
@@ -11,7 +11,7 @@ import { GroupAction } from "./types";
 import { sendResult, parseId } from "./reply";
 
 export function handleGroupAction(
-  ws: WebSocket,
+  socket: Socket,
   type: string,
   requestId: string | undefined,
   payload: ActionPayload,

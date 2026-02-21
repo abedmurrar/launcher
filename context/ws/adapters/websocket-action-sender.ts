@@ -1,8 +1,9 @@
+import type { Socket } from "socket.io-client";
 import type { ActionResult } from "../types";
 import type { ActionSender } from "./action-sender-types";
 
-export type WebSocketActionSenderParams = {
-  sendOverWebSocket: (message: unknown) => void;
+export type SocketIoActionSenderParams = {
+  getSocket: () => Socket | null;
   getPendingActions: () => Map<
     string,
     {
@@ -16,26 +17,27 @@ export type WebSocketActionSenderParams = {
 };
 
 /**
- * Adapter: sends actions over WebSocket and resolves via pending map;
- * on timeout or when WS is used elsewhere as fallback, delegates to fallbackSender.
+ * Adapter: sends actions over Socket.IO ("action" event) and resolves via pending map
+ * when "action_result" is received; on timeout or when socket unavailable, uses fallbackSender.
  */
-export function createWebSocketActionSender(
-  params: WebSocketActionSenderParams
+export function createSocketIoActionSender(
+  params: SocketIoActionSenderParams
 ): ActionSender {
-  const {
-    sendOverWebSocket,
-    getPendingActions,
-    timeoutMs,
-    fallbackSender,
-  } = params;
+  const { getSocket, getPendingActions, timeoutMs, fallbackSender } = params;
 
   return (actionType: string, payload: Record<string, unknown>) =>
     new Promise((resolve) => {
+      const socket = getSocket();
+      if (!socket?.connected) {
+        fallbackSender(actionType, payload).then(resolve);
+        return;
+      }
+
       const requestId = crypto.randomUUID();
       const pending = getPendingActions();
       pending.set(requestId, { resolve, type: actionType, payload });
 
-      sendOverWebSocket({ type: actionType, requestId, ...payload });
+      socket.emit("action", { type: actionType, requestId, ...payload });
 
       setTimeout(() => {
         const entry = pending.get(requestId);

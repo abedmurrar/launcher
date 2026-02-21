@@ -1,13 +1,13 @@
-import type { WebSocket } from "ws";
+import type { Socket } from "socket.io";
 
 /**
- * Singleton: single shared WebSocket client set and log subscribers per process.
+ * Singleton: shared Socket.IO client set and log subscribers per process.
  */
 class WsBroadcastSingleton {
   private static instance: WsBroadcastSingleton | null = null;
 
-  readonly clients = new Set<WebSocket>();
-  readonly logSubscribers = new Map<number, Set<WebSocket>>();
+  readonly clients = new Set<Socket>();
+  readonly logSubscribers = new Map<number, Set<Socket>>();
 
   private constructor() {}
 

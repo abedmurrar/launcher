@@ -27,7 +27,7 @@ Open [http://localhost:3000](http://localhost:3000). After code changes, run `np
 |------|---------|-------------|
 | Install deps | `npm install` | Install dependencies. |
 | Build | `npm run build` | Production build (Next.js + server). |
-| Run (dev) | `npm run dev` | Dev server with WebSocket at `http://localhost:3000` (or `PORT`). |
+| Run (dev) | `npm run dev` | Dev server with Socket.IO at `http://localhost:3000` (or `PORT`); uses polling then WebSocket. |
 | Run (prod) | `npm start` | Production server; requires `npm run build` first. |
 
 - **Port:** Default is `3000`. Override with `PORT=1337 npm start` (or `npm run dev`).
@@ -153,7 +153,7 @@ Logs: `pm2 logs launcher`. Restart: `pm2 restart launcher`.
 ## Architecture
 
 - **Runtime:** All process spawning and SQLite run in **Node.js** (not Edge). Route Handlers use the default Node runtime; `child_process` and `better-sqlite3` are only used there.
-- **Frontend data:** When you run the custom server (`npm run dev`), the UI uses **WebSocket** for real-time list updates and actions; if WebSocket is unavailable, it falls back to **HTTP** (fetch for lists and action endpoints).
+- **Frontend data:** When you run the custom server (`npm run dev`), the UI uses **Socket.IO** for real-time list updates and actions (transports: polling, then WebSocket). If Socket.IO is unavailable, the client falls back to **HTTP** (fetch for lists and action endpoints).
 - **Process tracking:** In-memory map `pid → { childProcess, commandId, runId }` in `lib/process-manager/state.ts` for stop/restart. After a server restart the map is empty; “stop” can still work by calling `process.kill(pid, 'SIGTERM')` using the PID stored in the DB for that run.
 - **Log streaming:** Server-Sent Events (SSE) from Route Handlers: one stream per run. Stdout/stderr are streamed to the SSE response and appended to SQLite so logs are both live and persisted.
 - **Group runs:** Commands in a group start **in parallel**. When any process exits with non-zero (or errors), the server kills all other processes in that group and marks the group run as failed.
@@ -263,7 +263,7 @@ SSE uses native `TransformStream` and `Response` with `text/event-stream` (no ex
 - **`lib/db/`** — `connection.ts`, `schema.ts`, **`queries/`** (commands, groups, runs, group-commands, group-runs, log-chunks), `facade.ts`. Single shared DB; all SQL in query modules.
 - **`lib/process-manager/`** — `state.ts` (static singleton), spawn, stop, kill, log, `facade.ts`. PID map, group run, log piping to DB and SSE.
 - **`lib/actions/`** — command/group server actions, `result-factory.ts`, `facade.ts`. **`lib/ws-action-handlers/`** — `types.ts` (CommandAction, GroupAction enums), command/group handlers, reply.
-- **`lib/ws-broadcast/`** — WebSocket list push, log stream, message factory, clients.
+- **`lib/ws-broadcast/`** — Socket.IO list push, log stream, message factory, clients.
 - **`context/ws/`** — React context provider, adapters (action sender, lists fetcher), lists-update-subject, HTTP fallback for actions and initial load.
 - **`app/api/`** — Route Handlers: `commands/`, `commands/[id]/`, run/stop/restart; `groups/`, `groups/[id]/`, commands, run; `runs/[runId]/logs/`, `runs/[runId]/logs/stream/`.
 - **`app/page.tsx`** — single dashboard with tabs (Commands | Groups). `app/error.tsx`, `app/not-found.tsx`, `app/global-error.tsx`, `app/loading.tsx` for error and loading states.

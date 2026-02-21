@@ -1,4 +1,4 @@
-import type { WebSocket } from "ws";
+import type { Socket } from "socket.io";
 import {
   runCommand,
   stopCommand,
@@ -12,7 +12,7 @@ import { CommandAction } from "./types";
 import { sendResult, parseId, parseOptionalRunId } from "./reply";
 
 export function handleCommandAction(
-  ws: WebSocket,
+  socket: Socket,
   type: string,
   requestId: string | undefined,
   payload: ActionPayload,
