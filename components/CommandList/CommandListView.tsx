@@ -127,14 +127,18 @@ function CommandListItemView({
           <button
             type="button"
             onClick={onEdit}
-            className="px-2 py-1 text-sm rounded text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+            disabled={c.running}
+            className="px-2 py-1 text-sm rounded text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={c.running ? "Stop the command first to edit" : undefined}
           >
             Edit
           </button>
           <button
             type="button"
             onClick={onDelete}
-            className="px-2 py-1 text-sm rounded text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20"
+            disabled={c.running}
+            className="px-2 py-1 text-sm rounded text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={c.running ? "Stop the command first to delete" : undefined}
           >
             Delete
           </button>

@@ -51,6 +51,9 @@ export function updateGroup(
   }
 
   if (!groupExists(id)) return notFound("Group");
+  if (getRunningGroupRunIdByGroupId(id) !== undefined) {
+    return ActionResultFactory.error("Cannot edit group while it is running", 409);
+  }
 
   updateGroupName(parsed.data.name, id);
   broadcastGroups();
@@ -60,6 +63,11 @@ export function updateGroup(
 
 export function deleteGroup(id: number): ActionResult<{ ok: true }> {
   if (Number.isNaN(id)) return invalidId();
+
+  if (!groupExists(id)) return notFound("Group");
+  if (getRunningGroupRunIdByGroupId(id) !== undefined) {
+    return ActionResultFactory.error("Cannot delete group while it is running", 409);
+  }
 
   const changes = deleteGroupById(id);
   if (changes === 0) return notFound("Group");
@@ -80,6 +88,9 @@ export function setGroupCommands(
   }
 
   if (!groupExists(id)) return notFound("Group");
+  if (getRunningGroupRunIdByGroupId(id) !== undefined) {
+    return ActionResultFactory.error("Cannot change group members while the group is running", 409);
+  }
 
   deleteGroupCommandsByGroupId(id);
   parsed.data.commandIds.forEach((commandId, index) => {

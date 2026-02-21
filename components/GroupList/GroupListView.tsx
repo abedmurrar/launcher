@@ -78,14 +78,18 @@ export function GroupListView(props: UseGroupListReturn) {
                       <button
                         type="button"
                         onClick={() => setEditing(g.id)}
-                        className="px-2 py-1 text-sm rounded text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                        disabled={g.running}
+                        className="px-2 py-1 text-sm rounded text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={g.running ? "Stop the group first to edit" : undefined}
                       >
                         Edit
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(g.id)}
-                        className="px-2 py-1 text-sm rounded text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20"
+                        disabled={g.running}
+                        className="px-2 py-1 text-sm rounded text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={g.running ? "Stop the group first to delete" : undefined}
                       >
                         Delete
                       </button>
@@ -115,7 +119,9 @@ export function GroupListView(props: UseGroupListReturn) {
                         const selected = Array.from(e.target.selectedOptions, (o) => Number(o.value));
                         handleSetCommands(g.id, selected);
                       }}
-                      className="w-full min-h-[80px] px-2 py-1 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm"
+                      disabled={g.running}
+                      className="w-full min-h-[80px] px-2 py-1 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={g.running ? "Stop the group first to change members" : undefined}
                     >
                       {commandsForSelect.map((c) => (
                         <option key={c.id} value={c.id}>

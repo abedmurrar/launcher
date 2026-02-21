@@ -39,3 +39,7 @@ export function getLogChunksFullByRunId(runId: number): LogChunkFullRow[] {
     )
     .all(runId) as LogChunkFullRow[];
 }
+
+export function deleteLogChunksByRunId(runId: number): void {
+  db().prepare("DELETE FROM log_chunks WHERE run_id = ?").run(runId);
+}

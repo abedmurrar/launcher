@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useWs } from "@/context/ws";
 
 type LogViewerProps = {
@@ -11,8 +11,25 @@ type LogViewerProps = {
 export function LogViewer({ runId, onClose }: LogViewerProps) {
   const [logs, setLogs] = useState<{ streamType: "stdout" | "stderr"; data: string }[]>([]);
   const [live, setLive] = useState(true);
+  const [clearing, setClearing] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
   const { subscribeToLogs, unsubscribeFromLogs } = useWs();
+
+  const clearLogs = useCallback(async () => {
+    if (clearing) return;
+    setClearing(true);
+    try {
+      const res = await fetch(`/api/runs/${runId}/logs`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data?.error ?? "Failed to clear logs");
+        return;
+      }
+      setLogs([]);
+    } finally {
+      setClearing(false);
+    }
+  }, [runId, clearing]);
 
   useEffect(() => {
     subscribeToLogs(runId, {
@@ -43,13 +60,23 @@ export function LogViewer({ runId, onClose }: LogViewerProps) {
           <span className="font-mono text-sm text-zinc-600 dark:text-zinc-400">
             Run #{runId} {live && "(live)"}
           </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1 rounded bg-zinc-300 dark:bg-zinc-600 hover:bg-zinc-400 dark:hover:bg-zinc-500 text-sm"
-          >
-            Close
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={clearLogs}
+              disabled={clearing || logs.length === 0}
+              className="px-3 py-1 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 hover:bg-amber-300 dark:hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              {clearing ? "Clearing…" : "Clear logs"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1 rounded bg-zinc-300 dark:bg-zinc-600 hover:bg-zinc-400 dark:hover:bg-zinc-500 text-sm"
+            >
+              Close
+            </button>
+          </div>
         </div>
         <pre
           ref={preRef}

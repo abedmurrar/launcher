@@ -4,6 +4,7 @@ import {
   updateRunStatusFailed,
   commandExists,
   getRunCommandId,
+  getRunningRunIdByCommandId,
   insertCommand,
   getCommandById,
   updateCommandName,
@@ -132,6 +133,10 @@ export function updateCommand(
 
   if (!commandExists(id)) return notFound("Command");
 
+  if (getRunningRunIdByCommandId(id) !== null) {
+    return ActionResultFactory.error("Cannot edit command while it is running", 409);
+  }
+
   const { name, command, cwd, env } = parsed.data;
   if (name !== undefined) updateCommandName(name, id);
   if (command !== undefined) updateCommandCommand(command, id);
@@ -155,6 +160,11 @@ export function updateCommand(
 
 export function deleteCommand(id: number): ActionResult<{ ok: true }> {
   if (Number.isNaN(id)) return invalidId();
+
+  if (!commandExists(id)) return notFound("Command");
+  if (getRunningRunIdByCommandId(id) !== null) {
+    return ActionResultFactory.error("Cannot delete command while it is running", 409);
+  }
 
   const changes = deleteCommandById(id);
   if (changes === 0) return notFound("Command");
