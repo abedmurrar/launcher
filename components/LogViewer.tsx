@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useWs } from "@/context/ws-context";
+import { useWs } from "@/context/ws";
 
 type LogViewerProps = {
   runId: number;

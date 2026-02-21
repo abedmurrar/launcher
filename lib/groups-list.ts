@@ -1,4 +1,9 @@
-import { getDb } from "@/lib/db";
+import {
+  listGroupsForList,
+  getGroupCommandsByGroupId,
+  getLastGroupRunByGroupId,
+  getRunningGroupRunIdByGroupId,
+} from "@/lib/db/queries";
 
 export type GroupListItem = {
   id: number;
@@ -13,31 +18,12 @@ export type GroupListItem = {
 };
 
 export function buildGroupsList(): GroupListItem[] {
-  const db = getDb();
-  const groups = db
-    .prepare(
-      `SELECT g.id, g.name, g.created_at
-       FROM groups g
-       ORDER BY g.name ASC`
-    )
-    .all() as Array<{ id: number; name: string; created_at: string }>;
+  const groups = listGroupsForList();
 
   return groups.map((g) => {
-    const commands = db
-      .prepare(
-        "SELECT command_id, sort_order FROM group_commands WHERE group_id = ? ORDER BY sort_order ASC"
-      )
-      .all(g.id) as Array<{ command_id: number; sort_order: number }>;
-    const lastRun = db
-      .prepare(
-        "SELECT id, started_at, finished_at, status FROM group_runs WHERE group_id = ? ORDER BY started_at DESC LIMIT 1"
-      )
-      .get(g.id) as { id: number; started_at: string; finished_at: string | null; status: string } | undefined;
-    const runningRun = db
-      .prepare(
-        "SELECT id FROM group_runs WHERE group_id = ? AND status = 'running' LIMIT 1"
-      )
-      .get(g.id) as { id: number } | undefined;
+    const commands = getGroupCommandsByGroupId(g.id);
+    const lastRun = getLastGroupRunByGroupId(g.id);
+    const runningRunId = getRunningGroupRunIdByGroupId(g.id);
     return {
       id: g.id,
       name: g.name,
@@ -51,8 +37,8 @@ export function buildGroupsList(): GroupListItem[] {
             status: lastRun.status,
           }
         : undefined,
-      running: !!runningRun,
-      running_group_run_id: runningRun?.id,
+      running: runningRunId !== undefined,
+      running_group_run_id: runningRunId,
     };
   });
 }

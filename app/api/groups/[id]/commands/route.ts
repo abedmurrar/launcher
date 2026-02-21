@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { groupExists, getGroupCommandsByGroupId } from "@/lib/db/queries";
 import { setGroupCommands } from "@/lib/actions";
 
 export async function GET(
@@ -10,16 +10,10 @@ export async function GET(
   if (Number.isNaN(id)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
-  const db = getDb();
-  const group = db.prepare("SELECT id FROM groups WHERE id = ?").get(id);
-  if (!group) {
+  if (!groupExists(id)) {
     return NextResponse.json({ error: "Group not found" }, { status: 404 });
   }
-  const rows = db
-    .prepare(
-      "SELECT command_id, sort_order FROM group_commands WHERE group_id = ? ORDER BY sort_order ASC"
-    )
-    .all(id) as Array<{ command_id: number; sort_order: number }>;
+  const rows = getGroupCommandsByGroupId(id);
   return NextResponse.json({ command_ids: rows.map((r) => r.command_id) });
 }
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { runExists, getLogChunksByRunId } from "@/lib/db/queries";
 import { registerSSEWriter, isRunLive } from "@/lib/process-manager";
 
 function sseMessage(data: string, event?: string): string {
@@ -15,9 +15,7 @@ export async function GET(
   if (Number.isNaN(runId)) {
     return NextResponse.json({ error: "Invalid runId" }, { status: 400 });
   }
-  const db = getDb();
-  const run = db.prepare("SELECT id FROM runs WHERE id = ?").get(runId);
-  if (!run) {
+  if (!runExists(runId)) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
 
@@ -44,11 +42,7 @@ export async function GET(
   };
 
   (async () => {
-    const existing = db
-      .prepare(
-        "SELECT stream_type, content FROM log_chunks WHERE run_id = ? ORDER BY id ASC"
-      )
-      .all(runId) as Array<{ stream_type: string; content: string }>;
+    const existing = getLogChunksByRunId(runId);
     for (const row of existing) {
       send(row.content, row.stream_type as "stdout" | "stderr");
     }

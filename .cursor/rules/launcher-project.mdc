@@ -8,5 +8,7 @@ alwaysApply: true
 - **Stack**: Next.js 16 (App Router), React 19, Tailwind 4, TypeScript. SQLite via better-sqlite3; optional zod for validation.
 - **Runtime**: All process spawning and DB access run in **Node.js** only. Do not use Edge runtime for any route that uses `child_process` or `better-sqlite3`.
 - **Security**: App is for local use only (localhost). Validate `cwd` (e.g. resolve to real path, ensure under allowed base). Do not expose without auth.
-- **Data**: SQLite in `./data/launcher.db`; schema and init in `lib/db.ts`. Use a single shared DB connection/module for API routes.
-- **Processes**: Spawn and PID tracking in `lib/process-manager.ts`. Stream stdout/stderr to both SQLite (`log_chunks`) and SSE; support run/stop/restart and group runs (parallel start, kill all on first failure).
+- **Data**: SQLite in `./data/launcher.db`; schema and init in `lib/db/`. Put all SQL in **`lib/db/queries/`** (commands, groups, runs, group-commands, group-runs, log-chunks). Use the shared DB connection and query modules or `lib/db` facade from API routes and actions.
+- **Processes**: Process manager in **`lib/process-manager/`**; state is a **static singleton** in `state.ts`. Stream stdout/stderr to SQLite (`log_chunks`) and SSE; support run/stop/restart and group runs (parallel start, kill all on first failure). Use the process-manager facade from API and WebSocket handlers.
+- **Actions & WebSocket**: Server actions in `lib/actions/` (facade); **ActionResultFactory** in `lib/actions/result-factory.ts`. Command/group **action names** live in **`lib/ws-action-handlers/types.ts`** (`CommandAction`, `GroupAction` enums). Client code must import only from `@/lib/ws-action-handlers/types` and `@/lib/actions/result-factory` to avoid pulling server-only code.
+- **Verification**: After **every** code change, run **`npm run dev`** to ensure the server and app are working. Do this before considering the change done.

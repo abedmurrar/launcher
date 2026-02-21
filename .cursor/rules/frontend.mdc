@@ -1,12 +1,13 @@
 ---
 description: React and frontend patterns for the launcher UI
-globs: app/**/*.tsx
+globs: app/**/*.tsx, components/**/*.tsx
 alwaysApply: false
 ---
 
 # Frontend (React / App Router)
 
-- Use **App Router**: `app/page.tsx` for dashboard; `app/commands/`, `app/groups/` for list and forms. Use Server Components by default; add `"use client"` only where needed (state, events, SSE).
-- **API calls**: Use `fetch()` to `/api/commands`, `/api/groups`, `/api/commands/[id]/run`, etc. For live logs, open an `EventSource` to `GET /api/runs/[runId]/logs/stream` and append to a log viewer.
-- **UI**: Tailwind 4 for styling. Show commands/groups with Run, Stop, Restart, Edit, Delete, View logs. Show running state and last run status; support “Run group” and reflect “one failed → all stopped.”
-- **Forms**: Command form: name, command, cwd, env (key/value or text). Group form: name, member commands (multiselect), optional reorder. Validate before submit; show loading and errors.
+- **App**: Single dashboard at `app/page.tsx` with tabs (Commands | Groups). Use Server Components by default; add `"use client"` only where needed (state, events, WebSocket, SSE).
+- **Data & transport**: WebSocket when available (custom server via `npm run dev`); HTTP fallback for lists and actions. Context in `context/ws` (provider, adapters, lists-update-subject). For live logs, use `EventSource` to `GET /api/runs/[runId]/logs/stream`.
+- **List UIs (Hooks + Container/Presentational)**: Custom hooks **`useCommandList`** and **`useGroupList`** hold state (showForm, editingId, logRunId) and all action handlers. Container components (`CommandList/index`, `GroupList/index`) call the hook and pass props to presentational views (`CommandListView`, `GroupListView`). Use shared **`ConnectionStatus`** for loading/error so list views stay presentational.
+- **Client imports**: Do not import from `lib/actions` barrel (server-only). Use `@/lib/actions/result-factory` and `@/lib/ws-action-handlers/types` for client-safe types and enums.
+- **UI**: Tailwind 4. Commands/groups: Run, Stop, Restart, Edit, Delete, View logs; Run group; show running state and last run; "one failed → all stopped." Forms: CommandForm (name, command, cwd, env), GroupForm (name, members multiselect). Validate before submit; show loading and errors.

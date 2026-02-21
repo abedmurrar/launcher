@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { listCommandsForList, getPidByRunId, getLastRunByCommandId } from "@/lib/db/queries";
 import { getRunIdForCommand } from "@/lib/process-manager";
 
 export type CommandListItem = {
@@ -18,34 +18,12 @@ export type CommandListItem = {
 };
 
 export function buildCommandsList(): CommandListItem[] {
-  const db = getDb();
-  const commands = db
-    .prepare(
-      `SELECT c.id, c.name, c.command, c.cwd, c.env, c.created_at, c.updated_at, c.last_run_at, c.last_exit_code
-       FROM commands c
-       ORDER BY c.updated_at DESC`
-    )
-    .all() as Array<{
-    id: number;
-    name: string;
-    command: string;
-    cwd: string;
-    env: string;
-    created_at: string;
-    updated_at: string;
-    last_run_at: string | null;
-    last_exit_code: number | null;
-  }>;
+  const commands = listCommandsForList();
 
   return commands.map((c) => {
     const runId = getRunIdForCommand(c.id);
-    const pid =
-      runId != null
-        ? (db.prepare("SELECT pid FROM runs WHERE id = ?").get(runId) as { pid: number } | undefined)?.pid
-        : null;
-    const lastRun = db
-      .prepare("SELECT id FROM runs WHERE command_id = ? ORDER BY started_at DESC LIMIT 1")
-      .get(c.id) as { id: number } | undefined;
+    const pid = runId != null ? getPidByRunId(runId) ?? null : null;
+    const lastRun = getLastRunByCommandId(c.id);
     return {
       id: c.id,
       name: c.name,

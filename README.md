@@ -15,17 +15,146 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000). After code changes, run `npm run dev` to verify the app and server still work.
 
-- **Build:** `npm run build`
-- **Start (production):** `npm start`
+---
+
+## Build and run locally
+
+**Prerequisites:** Node.js 18+ and npm.
+
+| Step | Command | Description |
+|------|---------|-------------|
+| Install deps | `npm install` | Install dependencies. |
+| Build | `npm run build` | Production build (Next.js + server). |
+| Run (dev) | `npm run dev` | Dev server with WebSocket at `http://localhost:3000` (or `PORT`). |
+| Run (prod) | `npm start` | Production server; requires `npm run build` first. |
+
+- **Port:** Default is `3000`. Override with `PORT=1337 npm start` (or `npm run dev`).
+- **Data:** SQLite DB and data dir are created at `./data/` under the **current working directory** when the app starts. Run the app from the project root so `data/launcher.db` lives in the repo (or set `cwd` when running as a daemon).
+
+---
+
+## Running as a daemon on Linux
+
+To keep the launcher running in the background and survive logouts, use one of the following.
+
+### Option 1: systemd user service (recommended)
+
+Runs as your user; no root required.
+
+1. **Build the app** (from the project directory):
+
+   ```bash
+   cd /path/to/launcher
+   npm install
+   npm run build
+   ```
+
+2. **Create a user systemd unit** (e.g. `~/.config/systemd/user/launcher.service`):
+
+   ```ini
+   [Unit]
+   Description=Launcher (browser-based command runner)
+   After=network.target
+
+   [Service]
+   Type=simple
+   WorkingDirectory=/path/to/launcher
+   ExecStart=/usr/bin/env npm start
+   Restart=on-failure
+   RestartSec=5
+   # Optional: port (default 3000)
+   Environment=PORT=3000
+
+   [Install]
+   WantedBy=default.target
+   ```
+
+   Replace `/path/to/launcher` with the real path to the project (e.g. `/home/you/Dev/launcher`).
+
+3. **Enable and start** (user service):
+
+   ```bash
+   systemctl --user daemon-reload
+   systemctl --user enable launcher
+   systemctl --user start launcher
+   ```
+
+4. **Useful commands:**
+
+   ```bash
+   systemctl --user status launcher   # status
+   systemctl --user stop launcher     # stop
+   systemctl --user restart launcher  # restart after code/build changes
+   journalctl --user -u launcher -f  # follow logs
+   ```
+
+5. **Long-running without login:** If you want the service to run when no one is logged in (e.g. on a headless server), enable lingering for your user:
+
+   ```bash
+   loginctl enable-linger $USER
+   ```
+
+Then the user service will start at boot and keep running after you log out.
+
+### Option 2: systemd system service
+
+Runs as a system-wide service (requires root to install).
+
+1. Create `/etc/systemd/system/launcher.service`:
+
+   ```ini
+   [Unit]
+   Description=Launcher (browser-based command runner)
+   After=network.target
+
+   [Service]
+   Type=simple
+   User=youruser
+   WorkingDirectory=/path/to/launcher
+   ExecStart=/usr/bin/env npm start
+   Restart=on-failure
+   RestartSec=5
+   Environment=PORT=3000
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+   Replace `youruser` and `/path/to/launcher` with the user that owns the app and the project path.
+
+2. Enable and start:
+
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable launcher
+   sudo systemctl start launcher
+   sudo systemctl status launcher
+   ```
+
+### Option 3: Process manager (e.g. PM2)
+
+If you prefer PM2:
+
+```bash
+npm install -g pm2
+cd /path/to/launcher
+npm run build
+pm2 start npm --name launcher -- start
+pm2 save
+pm2 startup   # optional: run the command it prints to start on boot
+```
+
+Logs: `pm2 logs launcher`. Restart: `pm2 restart launcher`.
 
 ---
 
 ## Architecture
 
 - **Runtime:** All process spawning and SQLite run in **Node.js** (not Edge). Route Handlers use the default Node runtime; `child_process` and `better-sqlite3` are only used there.
-- **Process tracking:** In-memory map `pid → { childProcess, commandId, runId }` for stop/restart. After a server restart the map is empty; “stop” can still work by calling `process.kill(pid, 'SIGTERM')` using the PID stored in the DB for that run.
+- **Frontend data:** When you run the custom server (`npm run dev`), the UI uses **WebSocket** for real-time list updates and actions; if WebSocket is unavailable, it falls back to **HTTP** (fetch for lists and action endpoints).
+- **Process tracking:** In-memory map `pid → { childProcess, commandId, runId }` in `lib/process-manager/state.ts` for stop/restart. After a server restart the map is empty; “stop” can still work by calling `process.kill(pid, 'SIGTERM')` using the PID stored in the DB for that run.
 - **Log streaming:** Server-Sent Events (SSE) from Route Handlers: one stream per run. Stdout/stderr are streamed to the SSE response and appended to SQLite so logs are both live and persisted.
 - **Group runs:** Commands in a group start **in parallel**. When any process exits with non-zero (or errors), the server kills all other processes in that group and marks the group run as failed.
 
@@ -112,7 +241,7 @@ All handlers that use the DB or `child_process` live under `app/api/` and use th
 |--------|---------|--------|
 | **next** | 16.1.6 | App Router, Route Handlers in `app/api/`. Use Node runtime (default) for routes that use `child_process` or `better-sqlite3`. [Next.js 16 docs](https://nextjs.org/docs). |
 | **react** / **react-dom** | 19.2.x | UI; use Server/Client Components as needed. |
-| **better-sqlite3** | ^12.6.2 | Synchronous SQLite in API routes. Use a single shared DB instance (e.g. in `lib/db.ts`); `db.prepare('...').run()` / `.get()` / `.all()`. [better-sqlite3](https://github.com/WiseLibs/better-sqlite3). |
+| **better-sqlite3** | ^12.6.2 | Synchronous SQLite in API routes. Use a single shared DB instance; `db.prepare('...').run()` / `.get()` / `.all()`; use `.pluck(true)` for single-column results; use `db.transaction()` for multi-statement atomicity (sync only). [API](https://github.com/WiseLibs/better-sqlite3/blob/HEAD/docs/api.md), [repo](https://github.com/WiseLibs/better-sqlite3). |
 | **@types/better-sqlite3** | ^7.6.13 | TypeScript types for better-sqlite3. |
 | **zod** | ^4.3.6 | Request body validation in Route Handlers: `z.object({ ... }).parse(await request.json())`. [zod](https://zod.dev). |
 | **tailwindcss** / **@tailwindcss/postcss** | ^4.2.0 | Styling. [Tailwind v4](https://tailwindcss.com/docs). |
@@ -131,15 +260,14 @@ SSE uses native `TransformStream` and `Response` with `text/event-stream` (no ex
 
 ## File structure
 
-- `lib/db.ts` — SQLite connection, schema init, migrations.
-- `lib/process-manager.ts` — spawn, PID map, group run, log piping to DB and SSE.
-- `app/api/commands/` — `route.ts`, `[id]/route.ts`, `[id]/run/route.ts`, `[id]/stop/route.ts`, `[id]/restart/route.ts`.
-- `app/api/groups/` — `route.ts`, `[id]/route.ts`, `[id]/run/route.ts`, `[id]/commands/route.ts`.
-- `app/api/runs/[runId]/logs/route.ts`, `app/api/runs/[runId]/logs/stream/route.ts`.
-- `app/page.tsx` — dashboard (commands + groups + running).
-- `app/commands/page.tsx` (or dashboard sections) — command list and form.
-- `app/groups/page.tsx` — group list and edit.
-- Components: CommandForm, CommandList, GroupForm, GroupList, LogViewer (SSE + fetch), RunControls (Run/Stop/Restart).
+- **`lib/db/`** — `connection.ts`, `schema.ts`, **`queries/`** (commands, groups, runs, group-commands, group-runs, log-chunks), `facade.ts`. Single shared DB; all SQL in query modules.
+- **`lib/process-manager/`** — `state.ts` (static singleton), spawn, stop, kill, log, `facade.ts`. PID map, group run, log piping to DB and SSE.
+- **`lib/actions/`** — command/group server actions, `result-factory.ts`, `facade.ts`. **`lib/ws-action-handlers/`** — `types.ts` (CommandAction, GroupAction enums), command/group handlers, reply.
+- **`lib/ws-broadcast/`** — WebSocket list push, log stream, message factory, clients.
+- **`context/ws/`** — React context provider, adapters (action sender, lists fetcher), lists-update-subject, HTTP fallback for actions and initial load.
+- **`app/api/`** — Route Handlers: `commands/`, `commands/[id]/`, run/stop/restart; `groups/`, `groups/[id]/`, commands, run; `runs/[runId]/logs/`, `runs/[runId]/logs/stream/`.
+- **`app/page.tsx`** — single dashboard with tabs (Commands | Groups). `app/error.tsx`, `app/not-found.tsx`, `app/global-error.tsx`, `app/loading.tsx` for error and loading states.
+- **Components:** `CommandList/` (useCommandList hook, container index, CommandListView), `GroupList/` (useGroupList, index, GroupListView), `CommandForm`, `GroupForm`, `LogViewer`, `RunControls`, `shared/ConnectionStatus`.
 
 ---
 

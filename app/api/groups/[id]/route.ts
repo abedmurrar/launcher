@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import {
+  getGroupById,
+  getGroupCommandsByGroupId,
+  getLastGroupRunByGroupId,
+  getRunningGroupRunIdByGroupId,
+} from "@/lib/db/queries";
 import { updateGroup, deleteGroup } from "@/lib/actions";
 
 export async function GET(
@@ -10,31 +15,20 @@ export async function GET(
   if (Number.isNaN(id)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
-  const db = getDb();
-  const row = db.prepare("SELECT * FROM groups WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  const row = getGroupById(id) as Record<string, unknown> | undefined;
   if (!row) {
     return NextResponse.json({ error: "Group not found" }, { status: 404 });
   }
-  const commands = db
-    .prepare(
-      "SELECT command_id, sort_order FROM group_commands WHERE group_id = ? ORDER BY sort_order ASC"
-    )
-    .all(id) as Array<{ command_id: number; sort_order: number }>;
-  const lastRun = db
-    .prepare(
-      "SELECT id, started_at, finished_at, status FROM group_runs WHERE group_id = ? ORDER BY started_at DESC LIMIT 1"
-    )
-    .get(id) as Record<string, unknown> | undefined;
-  const runningRun = db
-    .prepare("SELECT id FROM group_runs WHERE group_id = ? AND status = 'running' LIMIT 1")
-    .get(id) as { id: number } | undefined;
+  const commands = getGroupCommandsByGroupId(id);
+  const lastRun = getLastGroupRunByGroupId(id);
+  const runningRunId = getRunningGroupRunIdByGroupId(id);
 
   return NextResponse.json({
     ...row,
     command_ids: commands.map((c) => c.command_id),
-    last_run: lastRun,
-    running: !!runningRun,
-    running_group_run_id: runningRun?.id,
+    last_run: lastRun ?? undefined,
+    running: runningRunId !== undefined,
+    running_group_run_id: runningRunId,
   });
 }
 

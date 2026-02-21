@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import type { CommandActionType } from "@/lib/ws-action-handlers/types";
+import { CommandAction } from "@/lib/ws-action-handlers/types";
 
 type RunControlsProps = {
   commandId: number;
@@ -25,10 +27,10 @@ export function RunControls({
   onLogs,
   lastRunId,
 }: RunControlsProps) {
-  const [loading, setLoading] = useState<"run" | "stop" | "restart" | null>(null);
+  const [loading, setLoading] = useState<CommandActionType | null>(null);
 
   const handleRun = async () => {
-    setLoading("run");
+    setLoading(CommandAction.Run);
     try {
       await onRun();
     } finally {
@@ -36,7 +38,7 @@ export function RunControls({
     }
   };
   const handleStop = async () => {
-    setLoading("stop");
+    setLoading(CommandAction.Stop);
     try {
       await onStop();
     } finally {
@@ -44,7 +46,7 @@ export function RunControls({
     }
   };
   const handleRestart = async () => {
-    setLoading("restart");
+    setLoading(CommandAction.Restart);
     try {
       await onRestart();
     } finally {
@@ -65,7 +67,7 @@ export function RunControls({
             disabled={!!loading}
             className="px-2 py-1 text-sm rounded bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 disabled:opacity-50"
           >
-            {loading === "stop" ? "…" : "Stop"}
+            {loading === CommandAction.Stop ? "…" : "Stop"}
           </button>
           <button
             type="button"
@@ -73,7 +75,7 @@ export function RunControls({
             disabled={!!loading}
             className="px-2 py-1 text-sm rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 disabled:opacity-50"
           >
-            {loading === "restart" ? "…" : "Restart"}
+            {loading === CommandAction.Restart ? "…" : "Restart"}
           </button>
           {runId != null && (
             <button
@@ -93,7 +95,7 @@ export function RunControls({
             disabled={!!loading}
             className="px-2 py-1 text-sm rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 disabled:opacity-50"
           >
-            {loading === "run" ? "…" : "Run"}
+            {loading === CommandAction.Run ? "…" : "Run"}
           </button>
           {(runId ?? lastRunId) != null && (
             <button

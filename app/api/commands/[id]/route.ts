@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getCommandById, getRunByIdFull, getLastRunByCommandIdFull } from "@/lib/db/queries";
 import { getRunIdForCommand } from "@/lib/process-manager";
 import { updateCommand, deleteCommand } from "@/lib/actions";
 
@@ -11,18 +11,13 @@ export async function GET(
   if (Number.isNaN(id)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
-  const db = getDb();
-  const row = db.prepare("SELECT * FROM commands WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  const row = getCommandById(id) as Record<string, unknown> | undefined;
   if (!row) {
     return NextResponse.json({ error: "Command not found" }, { status: 404 });
   }
   const runId = getRunIdForCommand(id);
-  const runRow = runId != null
-    ? (db.prepare("SELECT id, pid, started_at, status FROM runs WHERE id = ?").get(runId) as Record<string, unknown> | undefined)
-    : null;
-  const lastRun = db
-    .prepare("SELECT id, started_at, finished_at, exit_code, status FROM runs WHERE command_id = ? ORDER BY started_at DESC LIMIT 1")
-    .get(id) as Record<string, unknown> | undefined;
+  const runRow = runId != null ? getRunByIdFull(runId) : null;
+  const lastRun = getLastRunByCommandIdFull(id);
 
   return NextResponse.json({
     id: row.id,
@@ -39,7 +34,7 @@ export async function GET(
     current_run: runRow
       ? { id: runRow.id, pid: runRow.pid, started_at: runRow.started_at, status: runRow.status }
       : undefined,
-    last_run: lastRun
+    last_run: lastRun != null
       ? {
           id: lastRun.id,
           started_at: lastRun.started_at,

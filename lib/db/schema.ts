@@ -1,29 +1,6 @@
-import Database from "better-sqlite3";
-import path from "path";
-import fs from "fs";
+import type Database from "better-sqlite3";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "launcher.db");
-
-let db: Database.Database | null = null;
-
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-}
-
-export function getDb(): Database.Database {
-  if (!db) {
-    ensureDataDir();
-    db = new Database(DB_PATH);
-    db.pragma("journal_mode = WAL");
-    initSchema(db);
-  }
-  return db;
-}
-
-function initSchema(database: Database.Database) {
+export function initSchema(database: Database.Database): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS commands (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,54 +61,3 @@ function initSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_group_commands_group_id ON group_commands(group_id);
   `);
 }
-
-export type CommandRow = {
-  id: number;
-  name: string;
-  command: string;
-  cwd: string;
-  env: string;
-  created_at: string;
-  updated_at: string;
-  last_run_at: string | null;
-  last_exit_code: number | null;
-};
-
-export type RunRow = {
-  id: number;
-  command_id: number;
-  group_run_id: number | null;
-  pid: number | null;
-  started_at: string;
-  finished_at: string | null;
-  exit_code: number | null;
-  status: string;
-};
-
-export type LogChunkRow = {
-  id: number;
-  run_id: number;
-  stream_type: "stdout" | "stderr";
-  content: string;
-  created_at: string;
-};
-
-export type GroupRow = {
-  id: number;
-  name: string;
-  created_at: string;
-};
-
-export type GroupCommandRow = {
-  group_id: number;
-  command_id: number;
-  sort_order: number;
-};
-
-export type GroupRunRow = {
-  id: number;
-  group_id: number;
-  started_at: string;
-  finished_at: string | null;
-  status: string;
-};
