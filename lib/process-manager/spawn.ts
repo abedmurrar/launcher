@@ -59,7 +59,7 @@ export function spawnCommand(
     groupRunIdToPids.set(groupRunId, pids);
   }
 
-  updateRunPid(pid, runId);
+  void updateRunPid(pid, runId).catch((err) => console.error("[run] updateRunPid failed:", err));
   notifyRunStateChange();
 
   child.stdout?.on("data", (data: Buffer) => {
@@ -86,24 +86,26 @@ export function spawnCommand(
       signal != null ? "killed" : code === 0 ? "success" : "failed";
     const exitCode = code ?? (signal ? -1 : 0);
 
-    updateRunFinished(runId, exitCode, status);
-    updateCommandLastRun(runId, exitCode, commandId);
+    void (async () => {
+      await updateRunFinished(runId, exitCode, status);
+      await updateCommandLastRun(runId, exitCode, commandId);
 
-    if (record?.groupRunId != null) {
-      const groupRunStatus = getGroupRunStatusById(record.groupRunId);
-      if (groupRunStatus === "running" && (code !== 0 || signal)) {
-        killGroupRun(record.groupRunId);
-      } else {
-        const runningCount = countRunningRunsByGroupRunId(record.groupRunId);
-        if (runningCount === 0) {
-          updateGroupRunFinishedSuccess(record.groupRunId);
+      if (record?.groupRunId != null) {
+        const groupRunStatus = await getGroupRunStatusById(record.groupRunId);
+        if (groupRunStatus === "running" && (code !== 0 || signal)) {
+          await killGroupRun(record.groupRunId);
+        } else {
+          const runningCount = await countRunningRunsByGroupRunId(record.groupRunId);
+          if (runningCount === 0) {
+            await updateGroupRunFinishedSuccess(record.groupRunId);
+          }
         }
       }
-    }
 
-    notifyLogFinished(runId);
-    finishRunLog(runId);
-    notifyRunStateChange();
+      notifyLogFinished(runId);
+      finishRunLog(runId);
+      notifyRunStateChange();
+    })().catch((err) => console.error("[run] exit handler failed:", err));
   });
 
   return pid;

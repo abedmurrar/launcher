@@ -3,13 +3,13 @@ import { runExists, getLogChunksByRunId } from "@/lib/db/queries";
 import { logSubscribers } from "./clients";
 import { send } from "./send";
 
-function getLogChunksForRun(runId: number): ReturnType<typeof getLogChunksByRunId> {
-  if (!runExists(runId)) return [];
+async function getLogChunksForRun(runId: number): Promise<ReturnType<typeof getLogChunksByRunId>> {
+  if (!(await runExists(runId))) return [];
   return getLogChunksByRunId(runId);
 }
 
-export function sendLogHistoryToClient(socket: Socket, runId: number): void {
-  const chunks = getLogChunksForRun(runId);
+export async function sendLogHistoryToClient(socket: Socket, runId: number): Promise<void> {
+  const chunks = await getLogChunksForRun(runId);
   if (chunks.length > 0) {
     send(socket, "log_history", { runId, chunks });
   }

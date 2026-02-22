@@ -6,7 +6,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const commandId = Number((await params).id);
-  const result = runCommand(commandId);
+  const result = await runCommand(commandId);
   if (!result.success) {
     return NextResponse.json(
       { error: result.error },

@@ -15,13 +15,13 @@ export async function GET(
   if (Number.isNaN(id)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
-  const row = getGroupById(id) as Record<string, unknown> | undefined;
+  const row = (await getGroupById(id)) as unknown as Record<string, unknown> | undefined;
   if (!row) {
     return NextResponse.json({ error: "Group not found" }, { status: 404 });
   }
-  const commands = getGroupCommandsByGroupId(id);
-  const lastRun = getLastGroupRunByGroupId(id);
-  const runningRunId = getRunningGroupRunIdByGroupId(id);
+  const commands = await getGroupCommandsByGroupId(id);
+  const lastRun = await getLastGroupRunByGroupId(id);
+  const runningRunId = await getRunningGroupRunIdByGroupId(id);
 
   return NextResponse.json({
     ...row,
@@ -38,7 +38,7 @@ export async function PATCH(
 ) {
   const id = Number((await params).id);
   const body = await request.json();
-  const result = updateGroup(id, body);
+  const result = await updateGroup(id, body);
   if (!result.success) {
     return NextResponse.json(
       { error: result.error },
@@ -53,7 +53,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const id = Number((await params).id);
-  const result = deleteGroup(id);
+  const result = await deleteGroup(id);
   if (!result.success) {
     return NextResponse.json(
       { error: result.error },

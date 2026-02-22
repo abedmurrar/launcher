@@ -20,6 +20,8 @@ export const GroupAction = {
   DeleteGroup: "delete_group",
   SetGroupCommands: "set_group_commands",
   RunGroup: "run_group",
+  StopGroup: "stop_group",
+  RestartGroup: "restart_group",
 } as const;
 
 export type GroupActionType = (typeof GroupAction)[keyof typeof GroupAction];
@@ -33,7 +35,12 @@ export type ActionType = (typeof ACTION_TYPES)[number];
 
 export type ActionPayload = Record<string, unknown>;
 
-export type ActionResult = { success: boolean; data?: unknown; error?: string; code?: number };
+export interface ActionResult {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+  code?: number;
+}
 
 export function isActionType(type: string): type is ActionType {
   return (ACTION_TYPES as readonly string[]).includes(type);

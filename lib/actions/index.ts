@@ -16,5 +16,6 @@ export {
   deleteGroup,
   setGroupCommands,
   runGroup,
+  stopGroup,
+  restartGroup,
 } from "./groups";
-export { actions } from "./facade";

@@ -1,37 +1,33 @@
 import { getDb } from "../connection";
-import type { GroupRow } from "../types";
 
-const db = () => getDb();
-
-export function getGroupById(id: number): GroupRow | undefined {
-  return db().prepare("SELECT * FROM groups WHERE id = ?").get(id) as GroupRow | undefined;
+export async function getGroupById(id: number) {
+  const db = await getDb();
+  return db("groups").where("id", id).first();
 }
 
-export function groupExists(id: number): boolean {
-  return db().prepare("SELECT id FROM groups WHERE id = ?").pluck(true).get(id) != null;
+export async function groupExists(id: number): Promise<boolean> {
+  const db = await getDb();
+  const row = await db("groups").select("id").where("id", id).first();
+  return row != null;
 }
 
-export function insertGroup(name: string): number {
-  const result = db().prepare("INSERT INTO groups (name) VALUES (?)").run(name);
-  return result.lastInsertRowid as number;
+export async function insertGroup(name: string): Promise<number> {
+  const db = await getDb();
+  const [id] = await db("groups").insert({ name });
+  return id;
 }
 
-export function updateGroupName(name: string, id: number): void {
-  db().prepare("UPDATE groups SET name = ? WHERE id = ?").run(name, id);
+export async function updateGroupName(name: string, id: number): Promise<void> {
+  const db = await getDb();
+  await db("groups").where("id", id).update({ name });
 }
 
-export function deleteGroup(id: number): number {
-  return db().prepare("DELETE FROM groups WHERE id = ?").run(id).changes;
+export async function deleteGroup(id: number): Promise<number> {
+  const db = await getDb();
+  return db("groups").where("id", id).del();
 }
 
-type GroupListRow = { id: number; name: string; created_at: string };
-
-export function listGroupsForList(): GroupListRow[] {
-  return db()
-    .prepare(
-      `SELECT g.id, g.name, g.created_at
-       FROM groups g
-       ORDER BY g.name ASC`
-    )
-    .all() as GroupListRow[];
+export async function listGroupsForList() {
+  const db = await getDb();
+  return db("groups").select("id", "name", "created_at").orderBy("name", "asc");
 }

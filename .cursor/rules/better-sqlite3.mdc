@@ -1,18 +1,15 @@
 ---
-description: better-sqlite3 usage; reference API at https://github.com/WiseLibs/better-sqlite3/blob/HEAD/docs/api.md
+description: Knex + SQLite (better-sqlite3) usage for lib/db
 globs: lib/db/**/*.ts
 alwaysApply: false
 ---
 
-# better-sqlite3 (SQLite in Node)
+# Knex (SQLite via better-sqlite3)
 
-**API:** [better-sqlite3 API](https://github.com/WiseLibs/better-sqlite3/blob/HEAD/docs/api.md)
+**API:** [Knex.js](https://knexjs.org/guide/)
 
-- **Connection:** Single shared DB via `getDb()` from `lib/db/connection.ts`. Use one connection per process; do not create `new Database()` in route handlers.
-- **Statements:** Use **prepared statements**: `db.prepare(sql)` then `.run(...)`, `.get(...)`, or `.all(...)` with [binding parameters](https://github.com/WiseLibs/better-sqlite3/blob/HEAD/docs/api.md#binding-parameters) (`?` positional or `@name`/`:name`/`$name` named). Prefer `.prepare()` + bind over `.exec()` for safety and performance.
-- **Single row:** `.get(...)` returns the first row as an object or `undefined`. For **one column only**, use `.pluck(true)` then `.get(...)` to get the scalar value (e.g. `number | undefined`) instead of `{ col: number }`.
-- **Many rows:** `.all(...)` returns an array of row objects; use `.pluck(true).all(...)` to get an array of first-column values.
-- **Writes:** `.run(...)` returns `{ changes, lastInsertRowid }`. Use `result.lastInsertRowid` for INSERT; use `result.changes` for UPDATE/DELETE when you need the count.
-- **Transactions:** For multiple statements that must succeed or fail together, use `db.transaction(() => { ... })`. The callback runs in a transaction; on return it commits, on throw it rolls back. **Do not use async functions** inside `.transaction()` — the callback must be synchronous (SQLite serializes transactions; keeping a transaction open across awaits is unsupported).
-- **Pragma:** Use `db.pragma('name')` or `db.pragma('name = value')`. For single-value pragmas use `db.pragma('cache_size', { simple: true })` to get the first column of the first row.
-- **Errors:** SQLite errors throw `SqliteError` (subclass of `Error`) with a `.code` property (e.g. `SQLITE_CONSTRAINT_UNIQUE`). See [SQLite result codes](https://sqlite.org/rescode.html).
+- **Connection:** Single shared DB via **async** `getDb()` from `lib/db/connection.ts`. Returns a Knex instance; **migrations** run on first use (`lib/db/migrations/`). All query code must `await getDb()` and be async.
+- **Queries:** Use the Knex builder: `db('table').where(...).first()`, `.select()`, `.insert()`, `.update()`, `.del()`. Prefer `.where('id', id)` over raw SQL. For SQLite, **insert** returns `[lastInsertRowid]` — use `const [id] = await db('table').insert({...})` to get the new id.
+- **Raw SQL:** Use `db.raw('SQL', [bindings])` when needed (e.g. subqueries, `datetime('now')`). Example: `db('commands').where('id', id).update({ updated_at: db.raw("datetime('now')") })`.
+- **Types:** Row types are **interfaces** in `lib/db/types.ts` (e.g. `CommandRow`, `GroupRow`). Use them for query results; Knex table augmentation in `lib/db/knex-types.d.ts` references them.
+- **Runtime:** Do not use Edge runtime for any route that uses Knex or `child_process`; Node.js only.

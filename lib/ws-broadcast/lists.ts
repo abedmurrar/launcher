@@ -4,23 +4,27 @@ import { buildGroupsList } from "@/lib/groups-list";
 import { clients } from "./clients";
 import { send, broadcast } from "./send";
 
-function onRunStateChange(): void {
-  broadcast(clients, "commands", buildCommandsList());
-  broadcast(clients, "groups", buildGroupsList());
+async function onRunStateChange(): Promise<void> {
+  const [commands, groups] = await Promise.all([buildCommandsList(), buildGroupsList()]);
+  broadcast(clients, "commands", commands);
+  broadcast(clients, "groups", groups);
 }
 
-export function broadcastCommands(): void {
-  broadcast(clients, "commands", buildCommandsList());
+export async function broadcastCommands(): Promise<void> {
+  const list = await buildCommandsList();
+  broadcast(clients, "commands", list);
 }
 
-export function broadcastGroups(): void {
-  broadcast(clients, "groups", buildGroupsList());
+export async function broadcastGroups(): Promise<void> {
+  const list = await buildGroupsList();
+  broadcast(clients, "groups", list);
 }
 
-export function sendInitialDump(socket: Socket): void {
+export async function sendInitialDump(socket: Socket): Promise<void> {
   try {
-    send(socket, "commands", buildCommandsList());
-    send(socket, "groups", buildGroupsList());
+    const [commands, groups] = await Promise.all([buildCommandsList(), buildGroupsList()]);
+    send(socket, "commands", commands);
+    send(socket, "groups", groups);
   } catch {
     send(socket, "commands", []);
     send(socket, "groups", []);

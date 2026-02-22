@@ -2,6 +2,7 @@ import http from "http";
 import { parse } from "url";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
+import { getDb } from "../lib/db/connection";
 import { init, registerClient, unregisterClient } from "../lib/ws-broadcast";
 import { handleSocketConnection } from "./ws-handler";
 import { dev, port, SOCKET_IO_PATH } from "./config";
@@ -9,7 +10,8 @@ import { dev, port, SOCKET_IO_PATH } from "./config";
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
-app.prepare().then(() => {
+app.prepare().then(async () => {
+  await getDb();
   init();
 
   const server = http.createServer((req, res) => {

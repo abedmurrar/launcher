@@ -1,50 +1,45 @@
 import { getDb } from "../connection";
 
-const db = () => getDb();
-
-export function getRunningGroupRunIdByGroupId(groupId: number): number | undefined {
-  return db()
-    .prepare("SELECT id FROM group_runs WHERE group_id = ? AND status = 'running' LIMIT 1")
-    .pluck(true)
-    .get(groupId) as number | undefined;
+export async function getRunningGroupRunIdByGroupId(groupId: number): Promise<number | undefined> {
+  const db = await getDb();
+  const row = await db("group_runs")
+    .select("id")
+    .where({ group_id: groupId, status: "running" })
+    .first();
+  return row?.id;
 }
 
-export function getLastGroupRunByGroupId(
-  groupId: number
-): { id: number; started_at: string; finished_at: string | null; status: string } | undefined {
-  return db()
-    .prepare(
-      "SELECT id, started_at, finished_at, status FROM group_runs WHERE group_id = ? ORDER BY started_at DESC LIMIT 1"
-    )
-    .get(groupId) as
-    | { id: number; started_at: string; finished_at: string | null; status: string }
-    | undefined;
+export async function getLastGroupRunByGroupId(groupId: number) {
+  const db = await getDb();
+  return db("group_runs")
+    .select("id", "started_at", "finished_at", "status")
+    .where("group_id", groupId)
+    .orderBy("started_at", "desc")
+    .first();
 }
 
-export function insertGroupRun(groupId: number): number {
-  const result = db()
-    .prepare("INSERT INTO group_runs (group_id, status) VALUES (?, 'running')")
-    .run(groupId);
-  return result.lastInsertRowid as number;
+export async function insertGroupRun(groupId: number) {
+  const db = await getDb();
+  const [id] = await db("group_runs").insert({ group_id: groupId, status: "running" });
+  return id;
 }
 
-export function getGroupRunStatusById(id: number): string | undefined {
-  return db().prepare("SELECT status FROM group_runs WHERE id = ?").pluck(true).get(id) as string | undefined;
+export async function getGroupRunStatusById(id: number): Promise<string | undefined> {
+  const db = await getDb();
+  const row = await db("group_runs").select("status").where("id", id).first();
+  return row?.status;
 }
 
-export function updateGroupRunFailed(id: number): void {
-  db()
-    .prepare(
-      "UPDATE group_runs SET finished_at = datetime('now'), status = 'failed' WHERE id = ?"
-    )
-    .run(id);
+export async function updateGroupRunFailed(id: number): Promise<void> {
+  const db = await getDb();
+  await db("group_runs")
+    .where("id", id)
+    .update({ finished_at: db.raw("datetime('now')"), status: "failed" });
 }
 
-export function updateGroupRunFinishedSuccess(id: number): void {
-  db()
-    .prepare(
-      "UPDATE group_runs SET finished_at = datetime('now'), status = 'success' WHERE id = ? AND status = 'running'"
-    )
-    .run(id);
+export async function updateGroupRunFinishedSuccess(id: number): Promise<void> {
+  const db = await getDb();
+  await db("group_runs")
+    .where({ id, status: "running" })
+    .update({ finished_at: db.raw("datetime('now')"), status: "success" });
 }
-

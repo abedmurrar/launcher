@@ -3,12 +3,12 @@ import { buildGroupsList } from "@/lib/groups-list";
 import { createGroup } from "@/lib/actions";
 
 export async function GET() {
-  return NextResponse.json(buildGroupsList());
+  return NextResponse.json(await buildGroupsList());
 }
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const result = createGroup(body);
+  const result = await createGroup(body);
   if (!result.success) {
     return NextResponse.json(
       { error: result.error },

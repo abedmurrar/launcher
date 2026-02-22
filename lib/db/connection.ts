@@ -1,40 +1,38 @@
-import Database from "better-sqlite3";
+import knex, { type Knex } from "knex";
 import path from "path";
 import fs from "fs";
-import { initSchema } from "./schema";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "launcher.db");
+// Static relative path so Next/Turbopack can resolve at build time
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const knexfile = require("../../knexfile.js");
+const env = process.env.NODE_ENV ?? "development";
+const config = knexfile[env] as Knex.Config;
 
-/**
- * Singleton: single shared database connection per process.
- */
-class DbSingleton {
-  private static instance: DbSingleton | null = null;
-  private connection: Database.Database | null = null;
+const connectionFilename =
+  typeof config.connection === "object" && config.connection !== null && "filename" in config.connection
+    ? (config.connection as { filename: string }).filename
+    : undefined;
 
-  private constructor() {}
+let instancePromise: Promise<Knex> | null = null;
 
-  static getInstance(): DbSingleton {
-    if (DbSingleton.instance === null) {
-      DbSingleton.instance = new DbSingleton();
-    }
-    return DbSingleton.instance;
+async function createKnex(): Promise<Knex> {
+  // Create the directory that actually contains the DB file (from config), so we don't rely on cwd vs __dirname mismatch
+  const dbDir = connectionFilename ? path.dirname(path.resolve(connectionFilename)) : path.join(process.cwd(), "data");
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
   }
-
-  getConnection(): Database.Database {
-    if (this.connection === null) {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      }
-      this.connection = new Database(DB_PATH);
-      this.connection.pragma("journal_mode = WAL");
-      initSchema(this.connection);
-    }
-    return this.connection;
-  }
+  const db = knex(config);
+  await db.raw("PRAGMA journal_mode = WAL");
+  await db.migrate.latest();
+  return db;
 }
 
-export function getDb(): Database.Database {
-  return DbSingleton.getInstance().getConnection();
+/**
+ * Singleton: single shared Knex instance per process. Resolves after migrations run.
+ */
+export function getDb(): Promise<Knex> {
+  if (instancePromise === null) {
+    instancePromise = createKnex();
+  }
+  return instancePromise;
 }

@@ -19,13 +19,6 @@ class WsBroadcastSingleton {
   }
 }
 
-function getWsBroadcastState(): WsBroadcastSingleton {
-  return WsBroadcastSingleton.getInstance();
-}
-
-export function getWsBroadcastStateInstance(): WsBroadcastSingleton {
-  return getWsBroadcastState();
-}
-
-export const clients = getWsBroadcastState().clients;
-export const logSubscribers = getWsBroadcastState().logSubscribers;
+const state = WsBroadcastSingleton.getInstance();
+export const clients = state.clients;
+export const logSubscribers = state.logSubscribers;

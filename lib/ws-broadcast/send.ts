@@ -9,10 +9,6 @@ export function send(socket: Socket, event: string, payload: unknown): void {
   }
 }
 
-export function sendToClient(socket: Socket, event: string, payload: unknown): void {
-  send(socket, event, payload);
-}
-
 export function broadcast(clients: Set<Socket>, event: string, payload: unknown): void {
   clients.forEach((socket) => send(socket, event, payload));
 }

@@ -27,9 +27,9 @@ export async function handleAction(
 
   try {
     if ((COMMAND_ACTIONS_LIST as readonly string[]).includes(type)) {
-      handleCommandAction(socket, type, requestId, payload, reply);
+      await handleCommandAction(socket, type, requestId, payload, reply);
     } else {
-      handleGroupAction(socket, type, requestId, payload, reply);
+      await handleGroupAction(socket, type, requestId, payload, reply);
     }
   } catch (err) {
     reply(

@@ -1,5 +1,6 @@
 "use client";
 
+import { Pencil, Trash2 } from "lucide-react";
 import { RunControls } from "@/components/RunControls";
 import { CommandForm } from "@/components/CommandForm";
 import { LogViewer } from "@/components/LogViewer";
@@ -7,6 +8,8 @@ import { ConnectionStatus } from "@/components/shared/ConnectionStatus";
 import type { CommandListItem } from "@/context/ws";
 import type { CommandFormData } from "@/components/CommandForm";
 import type { UseCommandListReturn } from "./useCommandList";
+
+const iconSize = 16;
 
 /**
  * Presentational: renders command list UI from props only (no hooks, no sendAction).
@@ -128,35 +131,42 @@ function CommandListItemView({
             type="button"
             onClick={onEdit}
             disabled={c.running}
-            className="px-2 py-1 text-sm rounded text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            title={c.running ? "Stop the command first to edit" : undefined}
+            className="p-1.5 rounded text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={c.running ? "Stop the command first to edit" : "Edit"}
           >
-            Edit
+            <Pencil size={iconSize} />
           </button>
           <button
             type="button"
             onClick={onDelete}
             disabled={c.running}
-            className="px-2 py-1 text-sm rounded text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-            title={c.running ? "Stop the command first to delete" : undefined}
+            className="p-1.5 rounded text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={c.running ? "Stop the command first to delete" : "Delete"}
           >
-            Delete
+            <Trash2 size={iconSize} />
           </button>
         </div>
       </div>
       <p className="mt-1 font-mono text-sm text-zinc-600 dark:text-zinc-400 truncate" title={c.command}>
         {c.command}
       </p>
-      {c.cwd && (
-        <p className="mt-0.5 font-mono text-xs text-zinc-500 dark:text-zinc-500">cwd: {c.cwd}</p>
-      )}
+      <p className="mt-0.5 font-mono text-xs text-zinc-500 dark:text-zinc-500">
+        cwd: {c.cwd || "—"}
+      </p>
+      <p className="mt-0.5 font-mono text-xs text-zinc-500 dark:text-zinc-500">
+        branch: {c.git_branch ?? "—"}
+      </p>
       <div className="mt-2 flex items-center gap-2 flex-wrap">
-        {c.last_run_at != null && (
-          <span className="text-xs text-zinc-500 dark:text-zinc-500">
-            Last run: {new Date(c.last_run_at).toLocaleString()}
-            {c.last_exit_code != null && ` (exit ${c.last_exit_code})`}
-          </span>
-        )}
+        <span className="text-xs text-zinc-500 dark:text-zinc-500">
+          {c.last_run_at != null ? (
+            <>
+              Last run: {new Date(c.last_run_at).toLocaleString()}
+              {c.last_exit_code != null && ` (exit ${c.last_exit_code})`}
+            </>
+          ) : (
+            "Last run: —"
+          )}
+        </span>
         <RunControls
           commandId={c.id}
           runId={c.run_id}

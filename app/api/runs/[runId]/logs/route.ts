@@ -9,10 +9,10 @@ export async function GET(
   if (Number.isNaN(runId)) {
     return NextResponse.json({ error: "Invalid runId" }, { status: 400 });
   }
-  if (!runExists(runId)) {
+  if (!(await runExists(runId))) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
-  const chunks = getLogChunksFullByRunId(runId);
+  const chunks = await getLogChunksFullByRunId(runId);
   return NextResponse.json({ run_id: runId, chunks });
 }
 
@@ -24,9 +24,9 @@ export async function DELETE(
   if (Number.isNaN(runId)) {
     return NextResponse.json({ error: "Invalid runId" }, { status: 400 });
   }
-  if (!runExists(runId)) {
+  if (!(await runExists(runId))) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
-  deleteLogChunksByRunId(runId);
+  await deleteLogChunksByRunId(runId);
   return NextResponse.json({ run_id: runId, cleared: true });
 }

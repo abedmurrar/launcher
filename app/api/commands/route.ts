@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
 import { buildCommandsList } from "@/lib/commands-list";
 import { createCommand } from "@/lib/actions";
 
 export async function GET() {
-  return NextResponse.json(buildCommandsList());
+  return NextResponse.json(await buildCommandsList());
 }
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const result = createCommand(body);
+  const result = await createCommand(body);
   if (!result.success) {
     return NextResponse.json(
       { error: result.error },

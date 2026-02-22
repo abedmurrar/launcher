@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import axios from "axios";
+import { apiClient } from "@/lib/api";
 import { useWs } from "@/context/ws";
 
-type LogViewerProps = {
+interface LogViewerProps {
   runId: number;
   onClose: () => void;
-};
+}
 
 export function LogViewer({ runId, onClose }: LogViewerProps) {
   const [logs, setLogs] = useState<{ streamType: "stdout" | "stderr"; data: string }[]>([]);
@@ -19,13 +21,18 @@ export function LogViewer({ runId, onClose }: LogViewerProps) {
     if (clearing) return;
     setClearing(true);
     try {
-      const res = await fetch(`/api/runs/${runId}/logs`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        alert(data?.error ?? "Failed to clear logs");
-        return;
+      const res = await apiClient.delete(`/api/runs/${runId}/logs`);
+      if (res.status >= 200 && res.status < 300) {
+        setLogs([]);
+      } else {
+        const errorMessage = (res.data as { error?: string })?.error ?? "Failed to clear logs";
+        alert(errorMessage);
       }
-      setLogs([]);
+    } catch (err) {
+      const message = axios.isAxiosError(err) && err.response?.data?.error
+        ? String(err.response.data.error)
+        : "Failed to clear logs";
+      alert(message);
     } finally {
       setClearing(false);
     }

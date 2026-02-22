@@ -2,7 +2,7 @@ import type { Socket } from "socket.io-client";
 import type { ActionResult } from "../types";
 import type { ActionSender } from "./action-sender-types";
 
-export type SocketIoActionSenderParams = {
+interface SocketIoActionSenderParams {
   getSocket: () => Socket | null;
   getPendingActions: () => Map<
     string,
@@ -14,7 +14,7 @@ export type SocketIoActionSenderParams = {
   >;
   timeoutMs: number;
   fallbackSender: ActionSender;
-};
+}
 
 /**
  * Adapter: sends actions over Socket.IO ("action" event) and resolves via pending map

@@ -8,7 +8,7 @@ import type {
 import { isActionResultMessage } from "./helpers";
 import { updateCommandsAndNotify, updateGroupsAndNotify } from "./lists-update-subject";
 
-export type MessageHandlerCallbacks = {
+export interface MessageHandlerCallbacks {
   setCommands: (commands: CommandListItem[]) => void;
   setGroups: (groups: GroupListItem[]) => void;
   setInitialLoadDone: (done: boolean) => void;

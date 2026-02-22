@@ -1,10 +1,10 @@
 import type { CommandListItem, GroupListItem } from "../types";
 
-export type ListsResult = {
+export interface ListsResult {
   commands: CommandListItem[];
   groups: GroupListItem[];
-};
+}
 
-export type ListsFetcher = {
+export interface ListsFetcher {
   fetchLists(): Promise<ListsResult>;
-};
+}

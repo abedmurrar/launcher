@@ -2,8 +2,7 @@ import type { ActionResult } from "../types";
 import type { OnListsUpdated } from "../adapters";
 import { adaptResponseToActionResult } from "../adapters";
 import { ActionResultFactory } from "@/lib/actions/result-factory";
-
-const API_BASE = "";
+import { apiClient } from "@/lib/api";
 
 export async function createGroupHttp(
   payload: Record<string, unknown>,
@@ -14,12 +13,11 @@ export async function createGroupHttp(
     (payload.data as { name?: string })?.name ??
     "";
 
-  const response = await fetch(`${API_BASE}/api/groups`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
-  return adaptResponseToActionResult(response, onListsUpdated);
+  const res = await apiClient.post("/api/groups", { name });
+  return adaptResponseToActionResult(
+    { data: res.data, status: res.status },
+    onListsUpdated
+  );
 }
 
 export async function updateGroupHttp(
@@ -32,12 +30,11 @@ export async function updateGroupHttp(
   const name =
     (payload.data as { name?: string })?.name ?? payload.name ?? "";
 
-  const response = await fetch(`${API_BASE}/api/groups/${groupId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
-  return adaptResponseToActionResult(response, onListsUpdated);
+  const res = await apiClient.patch(`/api/groups/${groupId}`, { name });
+  return adaptResponseToActionResult(
+    { data: res.data, status: res.status },
+    onListsUpdated
+  );
 }
 
 export async function deleteGroupHttp(
@@ -47,10 +44,11 @@ export async function deleteGroupHttp(
   const groupId = Number(payload.id);
   if (Number.isNaN(groupId)) return ActionResultFactory.invalidId();
 
-  const response = await fetch(`${API_BASE}/api/groups/${groupId}`, {
-    method: "DELETE",
-  });
-  return adaptResponseToActionResult(response, onListsUpdated);
+  const res = await apiClient.delete(`/api/groups/${groupId}`);
+  return adaptResponseToActionResult(
+    { data: res.data, status: res.status },
+    onListsUpdated
+  );
 }
 
 export async function setGroupCommandsHttp(
@@ -65,15 +63,14 @@ export async function setGroupCommandsHttp(
       commandIds: payload.commandIds ?? [],
     };
 
-  const response = await fetch(
-    `${API_BASE}/api/groups/${groupId}/commands`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
-    }
+  const res = await apiClient.put(
+    `/api/groups/${groupId}/commands`,
+    requestBody
   );
-  return adaptResponseToActionResult(response, onListsUpdated);
+  return adaptResponseToActionResult(
+    { data: res.data, status: res.status },
+    onListsUpdated
+  );
 }
 
 export async function runGroupHttp(
@@ -83,8 +80,37 @@ export async function runGroupHttp(
   const groupId = Number(payload.groupId);
   if (Number.isNaN(groupId)) return ActionResultFactory.invalidId();
 
-  const response = await fetch(`${API_BASE}/api/groups/${groupId}/run`, {
-    method: "POST",
-  });
-  return adaptResponseToActionResult(response, onListsUpdated);
+  const res = await apiClient.post(`/api/groups/${groupId}/run`);
+  return adaptResponseToActionResult(
+    { data: res.data, status: res.status },
+    onListsUpdated
+  );
+}
+
+export async function stopGroupHttp(
+  payload: Record<string, unknown>,
+  onListsUpdated: OnListsUpdated
+): Promise<ActionResult> {
+  const groupId = Number(payload.groupId);
+  if (Number.isNaN(groupId)) return ActionResultFactory.invalidId();
+
+  const res = await apiClient.post(`/api/groups/${groupId}/stop`);
+  return adaptResponseToActionResult(
+    { data: res.data, status: res.status },
+    onListsUpdated
+  );
+}
+
+export async function restartGroupHttp(
+  payload: Record<string, unknown>,
+  onListsUpdated: OnListsUpdated
+): Promise<ActionResult> {
+  const groupId = Number(payload.groupId);
+  if (Number.isNaN(groupId)) return ActionResultFactory.invalidId();
+
+  const res = await apiClient.post(`/api/groups/${groupId}/restart`);
+  return adaptResponseToActionResult(
+    { data: res.data, status: res.status },
+    onListsUpdated
+  );
 }

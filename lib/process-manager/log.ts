@@ -14,7 +14,7 @@ export function registerSSEWriter(runId: number, writer: SSEWriter): () => void 
 }
 
 export function emitLogChunk(runId: number, content: string, streamType: "stdout" | "stderr"): void {
-  insertLogChunk(runId, streamType, content);
+  void insertLogChunk(runId, streamType, content).catch((err) => console.error("[run] insertLogChunk failed:", err));
 
   const writers = sseWriters.get(runId);
   if (writers) {

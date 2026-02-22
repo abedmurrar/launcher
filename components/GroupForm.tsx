@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 
-type GroupFormProps = {
+interface GroupFormProps {
   initialName?: string;
   onSubmit: (name: string) => Promise<void>;
   onCancel?: () => void;
-};
+}
 
 export function GroupForm({ initialName = "", onSubmit, onCancel }: GroupFormProps) {
   const [name, setName] = useState(initialName);

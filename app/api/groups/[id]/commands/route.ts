@@ -10,10 +10,10 @@ export async function GET(
   if (Number.isNaN(id)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
-  if (!groupExists(id)) {
+  if (!(await groupExists(id))) {
     return NextResponse.json({ error: "Group not found" }, { status: 404 });
   }
-  const rows = getGroupCommandsByGroupId(id);
+  const rows = await getGroupCommandsByGroupId(id);
   return NextResponse.json({ command_ids: rows.map((r) => r.command_id) });
 }
 
@@ -23,7 +23,7 @@ export async function PUT(
 ) {
   const id = Number((await params).id);
   const body = await request.json();
-  const result = setGroupCommands(id, body);
+  const result = await setGroupCommands(id, body);
   if (!result.success) {
     return NextResponse.json(
       { error: result.error },

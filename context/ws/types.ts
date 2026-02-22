@@ -1,4 +1,4 @@
-export type CommandListItem = {
+export interface CommandListItem {
   id: number;
   name: string;
   command: string;
@@ -12,9 +12,11 @@ export type CommandListItem = {
   run_id?: number;
   last_run_id?: number;
   pid?: number;
-};
+  /** Git branch at cwd, if the directory is a git repo */
+  git_branch?: string | null;
+}
 
-export type GroupListItem = {
+export interface GroupListItem {
   id: number;
   name: string;
   created_at: string;
@@ -24,19 +26,26 @@ export type GroupListItem = {
     | undefined;
   running: boolean;
   running_group_run_id?: number;
-};
+}
 
-export type LogChunk = { stream_type: string; content: string };
+export interface LogChunk {
+  stream_type: string;
+  content: string;
+}
 
-export type LogCallbacks = {
+export interface LogCallbacks {
   onHistory?: (chunks: LogChunk[]) => void;
   onChunk: (streamType: "stdout" | "stderr", data: string) => void;
   onFinished: () => void;
-};
+}
 
-export type ActionResult = { success: boolean; data?: unknown; error?: string };
+export interface ActionResult {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}
 
-export type WsContextValue = {
+export interface WsContextValue {
   commands: CommandListItem[];
   groups: GroupListItem[];
   ready: boolean;
@@ -45,9 +54,9 @@ export type WsContextValue = {
   sendAction: (type: string, payload: Record<string, unknown>) => Promise<ActionResult>;
   subscribeToLogs: (runId: number, callbacks: LogCallbacks) => void;
   unsubscribeFromLogs: (runId: number) => void;
-};
+}
 
-export type IncomingMessage = {
+export interface IncomingMessage {
   type: string;
   data?: unknown;
   runId?: number;
@@ -56,4 +65,4 @@ export type IncomingMessage = {
   success?: boolean;
   error?: string;
   chunks?: LogChunk[];
-};
+}

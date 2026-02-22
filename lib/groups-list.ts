@@ -5,7 +5,7 @@ import {
   getRunningGroupRunIdByGroupId,
 } from "@/lib/db/queries";
 
-export type GroupListItem = {
+export interface GroupListItem {
   id: number;
   name: string;
   created_at: string;
@@ -15,30 +15,43 @@ export type GroupListItem = {
     | undefined;
   running: boolean;
   running_group_run_id?: number;
-};
+}
 
-export function buildGroupsList(): GroupListItem[] {
-  const groups = listGroupsForList();
+export async function buildGroupsList(): Promise<GroupListItem[]> {
+  const groups = await listGroupsForList();
 
-  return groups.map((g) => {
-    const commands = getGroupCommandsByGroupId(g.id);
-    const lastRun = getLastGroupRunByGroupId(g.id);
-    const runningRunId = getRunningGroupRunIdByGroupId(g.id);
-    return {
-      id: g.id,
-      name: g.name,
-      created_at: g.created_at,
-      command_ids: commands.map((c) => c.command_id),
-      last_run: lastRun
-        ? {
-            id: lastRun.id,
-            started_at: lastRun.started_at,
-            finished_at: lastRun.finished_at,
-            status: lastRun.status,
-          }
-        : undefined,
-      running: runningRunId !== undefined,
-      running_group_run_id: runningRunId,
-    };
+  const list = await Promise.all(
+    groups.map(async (g) => {
+      const commands = await getGroupCommandsByGroupId(g.id);
+      const lastRun = await getLastGroupRunByGroupId(g.id);
+      const runningRunId = await getRunningGroupRunIdByGroupId(g.id);
+      return {
+        id: g.id,
+        name: g.name,
+        created_at: g.created_at,
+        command_ids: commands.map((c) => c.command_id),
+        last_run: lastRun
+          ? {
+              id: lastRun.id,
+              started_at: lastRun.started_at,
+              finished_at: lastRun.finished_at,
+              status: lastRun.status,
+            }
+          : undefined,
+        running: runningRunId !== undefined,
+        running_group_run_id: runningRunId,
+      };
+    })
+  );
+
+  // Most recently run first; never-run groups last
+  list.sort((a, b) => {
+    const aAt = a.last_run?.started_at ?? "";
+    const bAt = b.last_run?.started_at ?? "";
+    if (!aAt && !bAt) return 0;
+    if (!aAt) return 1;
+    if (!bAt) return -1;
+    return bAt.localeCompare(aAt);
   });
+  return list;
 }

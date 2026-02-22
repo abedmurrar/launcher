@@ -1,45 +1,46 @@
 import { getDb } from "../connection";
 
-const db = () => getDb();
-
-export function insertLogChunk(
+export async function insertLogChunk(
   runId: number,
   streamType: "stdout" | "stderr",
   content: string
-): void {
-  db()
-    .prepare(
-      "INSERT INTO log_chunks (run_id, stream_type, content, created_at) VALUES (?, ?, ?, datetime('now'))"
-    )
-    .run(runId, streamType, content);
+): Promise<void> {
+  const db = await getDb();
+  await db("log_chunks").insert({
+    run_id: runId,
+    stream_type: streamType,
+    content,
+    created_at: db.raw("datetime('now')"),
+  });
 }
 
-export type LogChunkContentRow = { stream_type: string; content: string };
-
-export function getLogChunksByRunId(runId: number): LogChunkContentRow[] {
-  return db()
-    .prepare(
-      "SELECT stream_type, content FROM log_chunks WHERE run_id = ? ORDER BY id ASC"
-    )
-    .all(runId) as LogChunkContentRow[];
+export interface LogChunkContentRow {
+  stream_type: string;
+  content: string;
 }
 
-export type LogChunkFullRow = {
+export async function getLogChunksByRunId(runId: number) {
+  const db = await getDb();
+  return db("log_chunks").select("stream_type", "content").where("run_id", runId).orderBy("id", "asc");
+}
+
+export interface LogChunkFullRow {
   id: number;
   run_id: number;
   stream_type: string;
   content: string;
   created_at: string;
-};
-
-export function getLogChunksFullByRunId(runId: number): LogChunkFullRow[] {
-  return db()
-    .prepare(
-      "SELECT id, run_id, stream_type, content, created_at FROM log_chunks WHERE run_id = ? ORDER BY id ASC"
-    )
-    .all(runId) as LogChunkFullRow[];
 }
 
-export function deleteLogChunksByRunId(runId: number): void {
-  db().prepare("DELETE FROM log_chunks WHERE run_id = ?").run(runId);
+export async function getLogChunksFullByRunId(runId: number) {
+  const db = await getDb();
+  return db("log_chunks")
+    .select("id", "run_id", "stream_type", "content", "created_at")
+    .where("run_id", runId)
+    .orderBy("id", "asc");
+}
+
+export async function deleteLogChunksByRunId(runId: number): Promise<void> {
+  const db = await getDb();
+  await db("log_chunks").where("run_id", runId).del();
 }

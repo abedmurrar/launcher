@@ -15,7 +15,7 @@ export async function GET(
   if (Number.isNaN(runId)) {
     return NextResponse.json({ error: "Invalid runId" }, { status: 400 });
   }
-  if (!runExists(runId)) {
+  if (!(await runExists(runId))) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
 
@@ -42,7 +42,7 @@ export async function GET(
   };
 
   (async () => {
-    const existing = getLogChunksByRunId(runId);
+    const existing = await getLogChunksByRunId(runId);
     for (const row of existing) {
       send(row.content, row.stream_type as "stdout" | "stderr");
     }

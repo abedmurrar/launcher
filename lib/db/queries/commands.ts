@@ -1,82 +1,81 @@
 import { getDb } from "../connection";
-import type { CommandRow } from "../types";
 
-const db = () => getDb();
-
-export function getCommandById(id: number): CommandRow | undefined {
-  return db().prepare("SELECT * FROM commands WHERE id = ?").get(id) as CommandRow | undefined;
+export async function getCommandById(id: number) {
+  const db = await getDb();
+  return db("commands").where("id", id).first();
 }
 
-export function getCommandByIdForRun(
-  id: number
-): { id: number; name: string; command: string; cwd: string; env: string } | undefined {
-  return db()
-    .prepare("SELECT id, name, command, cwd, env FROM commands WHERE id = ?")
-    .get(id) as { id: number; name: string; command: string; cwd: string; env: string } | undefined;
+export async function getCommandByIdForRun(id: number) {
+  const db = await getDb();
+  return db("commands").select("id", "name", "command", "cwd", "env").where("id", id).first();
 }
 
-export function insertCommand(
+export async function insertCommand(
   name: string,
   command: string,
   cwd: string,
   env: string
-): number {
-  const result = db()
-    .prepare("INSERT INTO commands (name, command, cwd, env) VALUES (?, ?, ?, ?)")
-    .run(name, command, cwd, env);
-  return result.lastInsertRowid as number;
+): Promise<number> {
+  const db = await getDb();
+  const [id] = await db("commands").insert({ name, command, cwd, env });
+  return id;
 }
 
-export function updateCommandName(name: string, id: number): void {
-  db().prepare("UPDATE commands SET name = ?, updated_at = datetime('now') WHERE id = ?").run(name, id);
+export async function updateCommandName(name: string, id: number): Promise<void> {
+  const db = await getDb();
+  await db("commands").where("id", id).update({ name, updated_at: db.raw("datetime('now')") });
 }
 
-export function updateCommandCommand(command: string, id: number): void {
-  db().prepare("UPDATE commands SET command = ?, updated_at = datetime('now') WHERE id = ?").run(command, id);
+export async function updateCommandCommand(command: string, id: number): Promise<void> {
+  const db = await getDb();
+  await db("commands").where("id", id).update({ command, updated_at: db.raw("datetime('now')") });
 }
 
-export function updateCommandCwd(cwd: string, id: number): void {
-  db().prepare("UPDATE commands SET cwd = ?, updated_at = datetime('now') WHERE id = ?").run(cwd, id);
+export async function updateCommandCwd(cwd: string, id: number): Promise<void> {
+  const db = await getDb();
+  await db("commands").where("id", id).update({ cwd, updated_at: db.raw("datetime('now')") });
 }
 
-export function updateCommandEnv(env: string, id: number): void {
-  db().prepare("UPDATE commands SET env = ?, updated_at = datetime('now') WHERE id = ?").run(env, id);
+export async function updateCommandEnv(env: string, id: number): Promise<void> {
+  const db = await getDb();
+  await db("commands").where("id", id).update({ env, updated_at: db.raw("datetime('now')") });
 }
 
-export function updateCommandLastRun(runId: number, exitCode: number, commandId: number): void {
-  db()
-    .prepare(
-      "UPDATE commands SET last_run_at = (SELECT started_at FROM runs WHERE id = ?), last_exit_code = ? WHERE id = ?"
+export async function updateCommandLastRun(runId: number, exitCode: number, commandId: number): Promise<void> {
+  const db = await getDb();
+  await db("commands")
+    .where("id", commandId)
+    .update({
+      last_run_at: db.raw("(SELECT started_at FROM runs WHERE id = ?)", [runId]),
+      last_exit_code: exitCode,
+    });
+}
+
+export async function deleteCommandById(id: number): Promise<number> {
+  const db = await getDb();
+  const deleted = await db("commands").where("id", id).del();
+  return deleted;
+}
+
+export async function commandExists(id: number): Promise<boolean> {
+  const db = await getDb();
+  const row = await db("commands").select("id").where("id", id).first();
+  return row != null;
+}
+
+export async function listCommandsForList() {
+  const db = await getDb();
+  return db("commands")
+    .select(
+      "id",
+      "name",
+      "command",
+      "cwd",
+      "env",
+      "created_at",
+      "updated_at",
+      "last_run_at",
+      "last_exit_code"
     )
-    .run(runId, exitCode, commandId);
-}
-
-export function deleteCommandById(id: number): number {
-  return db().prepare("DELETE FROM commands WHERE id = ?").run(id).changes;
-}
-
-export function commandExists(id: number): boolean {
-  return db().prepare("SELECT id FROM commands WHERE id = ?").pluck(true).get(id) != null;
-}
-
-type CommandListRow = {
-  id: number;
-  name: string;
-  command: string;
-  cwd: string;
-  env: string;
-  created_at: string;
-  updated_at: string;
-  last_run_at: string | null;
-  last_exit_code: number | null;
-};
-
-export function listCommandsForList(): CommandListRow[] {
-  return db()
-    .prepare(
-      `SELECT c.id, c.name, c.command, c.cwd, c.env, c.created_at, c.updated_at, c.last_run_at, c.last_exit_code
-       FROM commands c
-       ORDER BY c.updated_at DESC`
-    )
-    .all() as CommandListRow[];
+    .orderByRaw("last_run_at IS NOT NULL DESC, last_run_at DESC");
 }

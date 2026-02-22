@@ -5,12 +5,12 @@ import type { CommandListItem, GroupListItem } from "./types";
 import { createHttpListsFetcher } from "./adapters";
 import { POLL_INTERVAL_MS } from "./constants";
 
-export type PollingWhenDisconnectedParams = {
+export interface PollingWhenDisconnectedParams {
   ready: boolean;
   setCommands: (commands: CommandListItem[]) => void;
   setGroups: (groups: GroupListItem[]) => void;
   setInitialLoadDone: (done: boolean) => void;
-};
+}
 
 const listsFetcher = createHttpListsFetcher();
 

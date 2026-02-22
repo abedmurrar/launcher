@@ -16,7 +16,7 @@ export function subscribeLogs(socket: Socket, runId: number): void {
     logSubscribers.set(runId, new Set());
   }
   logSubscribers.get(runId)!.add(socket);
-  sendLogHistoryToClient(socket, runId);
+  void sendLogHistoryToClient(socket, runId).catch((err) => console.error("[ws] sendLogHistoryToClient failed:", err));
 }
 
 export function unsubscribeLogs(socket: Socket, runId: number): void {

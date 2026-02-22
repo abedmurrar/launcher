@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { Play, Square, RotateCcw, History } from "lucide-react";
 import type { CommandActionType } from "@/lib/ws-action-handlers/types";
 import { CommandAction } from "@/lib/ws-action-handlers/types";
 
-type RunControlsProps = {
+const iconSize = 16;
+
+interface RunControlsProps {
   commandId: number;
   runId?: number;
   lastRunId?: number;
@@ -14,7 +17,7 @@ type RunControlsProps = {
   onStop: () => Promise<unknown>;
   onRestart: () => Promise<unknown>;
   onLogs: (runId: number) => void;
-};
+}
 
 export function RunControls({
   commandId,
@@ -65,25 +68,28 @@ export function RunControls({
             type="button"
             onClick={handleStop}
             disabled={!!loading}
-            className="px-2 py-1 text-sm rounded bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 disabled:opacity-50"
+            title="Stop"
+            className="p-1.5 rounded bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 disabled:opacity-50"
           >
-            {loading === CommandAction.Stop ? "…" : "Stop"}
+            {loading === CommandAction.Stop ? "…" : <Square size={iconSize} />}
           </button>
           <button
             type="button"
             onClick={handleRestart}
             disabled={!!loading}
-            className="px-2 py-1 text-sm rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 disabled:opacity-50"
+            title="Restart"
+            className="p-1.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 disabled:opacity-50"
           >
-            {loading === CommandAction.Restart ? "…" : "Restart"}
+            {loading === CommandAction.Restart ? "…" : <RotateCcw size={iconSize} />}
           </button>
           {runId != null && (
             <button
               type="button"
               onClick={() => onLogs(runId)}
-              className="px-2 py-1 text-sm rounded bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-zinc-600"
+              title="Logs"
+              className="p-1.5 rounded bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-zinc-600"
             >
-              Logs
+              <History size={iconSize} />
             </button>
           )}
         </>
@@ -93,17 +99,19 @@ export function RunControls({
             type="button"
             onClick={handleRun}
             disabled={!!loading}
-            className="px-2 py-1 text-sm rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 disabled:opacity-50"
+            title="Run"
+            className="p-1.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 disabled:opacity-50"
           >
-            {loading === CommandAction.Run ? "…" : "Run"}
+            {loading === CommandAction.Run ? "…" : <Play size={iconSize} />}
           </button>
           {(runId ?? lastRunId) != null && (
             <button
               type="button"
               onClick={() => onLogs((runId ?? lastRunId)!)}
-              className="px-2 py-1 text-sm rounded bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-zinc-600"
+              title="View logs"
+              className="p-1.5 rounded bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-zinc-600"
             >
-              View logs
+              <History size={iconSize} />
             </button>
           )}
         </>

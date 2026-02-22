@@ -2,7 +2,7 @@
 
 A local web app to define, run, stop, and restart shell commands and command groups. Logs are streamed live and persisted in SQLite.
 
-**Stack:** Next.js 16 (App Router), React 19, Tailwind 4, TypeScript.
+**Stack:** Next.js 16 (App Router), React 19, Tailwind 4, TypeScript. Prefer **`interface`** for object shapes; use **`type`** for unions, function types, and generics.
 
 > **Security:** This app is for **local use only** (e.g. `localhost`). Do not expose it to the network without adding authentication.
 
@@ -239,9 +239,10 @@ All handlers that use the DB or `child_process` live under `app/api/` and use th
 
 | Package | Version | Usage |
 |--------|---------|--------|
-| **next** | 16.1.6 | App Router, Route Handlers in `app/api/`. Use Node runtime (default) for routes that use `child_process` or `better-sqlite3`. [Next.js 16 docs](https://nextjs.org/docs). |
+| **next** | 16.1.6 | App Router, Route Handlers in `app/api/`. Use Node runtime (default) for routes that use `child_process` or Knex. [Next.js 16 docs](https://nextjs.org/docs). |
 | **react** / **react-dom** | 19.2.x | UI; use Server/Client Components as needed. |
-| **better-sqlite3** | ^12.6.2 | Synchronous SQLite in API routes. Use a single shared DB instance; `db.prepare('...').run()` / `.get()` / `.all()`; use `.pluck(true)` for single-column results; use `db.transaction()` for multi-statement atomicity (sync only). [API](https://github.com/WiseLibs/better-sqlite3/blob/HEAD/docs/api.md), [repo](https://github.com/WiseLibs/better-sqlite3). |
+| **knex** | ^3.1.0 | Query builder and migrations; SQLite via **better-sqlite3**. Single shared DB via `getDb()`; schema in `lib/db/migrations/`. [Knex](https://knexjs.org/guide/). |
+| **better-sqlite3** | ^12.6.2 | SQLite driver used by Knex. [API](https://github.com/WiseLibs/better-sqlite3/blob/HEAD/docs/api.md). |
 | **@types/better-sqlite3** | ^7.6.13 | TypeScript types for better-sqlite3. |
 | **zod** | ^4.3.6 | Request body validation in Route Handlers: `z.object({ ... }).parse(await request.json())`. [zod](https://zod.dev). |
 | **tailwindcss** / **@tailwindcss/postcss** | ^4.2.0 | Styling. [Tailwind v4](https://tailwindcss.com/docs). |
@@ -260,7 +261,7 @@ SSE uses native `TransformStream` and `Response` with `text/event-stream` (no ex
 
 ## File structure
 
-- **`lib/db/`** — `connection.ts`, `schema.ts`, **`queries/`** (commands, groups, runs, group-commands, group-runs, log-chunks), `facade.ts`. Single shared DB; all SQL in query modules.
+- **`lib/db/`** — `connection.ts`, **`migrations/`** (Knex), **`queries/`** (commands, groups, runs, group-commands, group-runs, log-chunks), `types.ts` (row **interfaces**), `knex-types.d.ts` (Knex table augmentation), `facade.ts`. Single shared DB via Knex; schema via migrations.
 - **`lib/process-manager/`** — `state.ts` (static singleton), spawn, stop, kill, log, `facade.ts`. PID map, group run, log piping to DB and SSE.
 - **`lib/actions/`** — command/group server actions, `result-factory.ts`, `facade.ts`. **`lib/ws-action-handlers/`** — `types.ts` (CommandAction, GroupAction enums), command/group handlers, reply.
 - **`lib/ws-broadcast/`** — Socket.IO list push, log stream, message factory, clients.

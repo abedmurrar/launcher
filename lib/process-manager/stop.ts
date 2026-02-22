@@ -2,7 +2,7 @@ import { getRunById, getRunningRunIdByCommandId } from "@/lib/db/queries";
 import { runIdToPid, pidMap, getRunIdForCommand } from "./state";
 import { killProcessGroup } from "./kill";
 
-export function stopRun(runId: number): boolean {
+export async function stopRun(runId: number): Promise<boolean> {
   const pid = runIdToPid.get(runId);
   if (pid !== undefined) {
     const record = pidMap.get(pid);
@@ -10,29 +10,29 @@ export function stopRun(runId: number): boolean {
       return killProcessGroup(pid, "SIGTERM");
     }
   }
-  const row = getRunById(runId);
+  const row = await getRunById(runId);
   if (row?.pid) {
     return killProcessGroup(row.pid, "SIGTERM");
   }
   return false;
 }
 
-export function stopByCommandId(commandId: number): boolean {
-  const runId = getRunningRunIdByCommandId(commandId);
+export async function stopByCommandId(commandId: number): Promise<boolean> {
+  const runId = await getRunningRunIdByCommandId(commandId);
   if (runId !== null) return stopRun(runId);
   return false;
 }
 
-export function stopByCommandIdAndWait(
+export async function stopByCommandIdAndWait(
   commandId: number,
   timeoutMs: number = 10_000
 ): Promise<void> {
-  const runId = getRunIdForCommand(commandId);
-  if (runId === null) return Promise.resolve();
+  const runId = await getRunIdForCommand(commandId);
+  if (runId === null) return;
 
-  stopRun(runId);
+  await stopRun(runId);
 
-  return new Promise((resolve) => {
+  return new Promise<void>((resolve) => {
     const pollIntervalMs = 50;
     const deadline = timeoutMs > 0 ? Date.now() + timeoutMs : null;
 

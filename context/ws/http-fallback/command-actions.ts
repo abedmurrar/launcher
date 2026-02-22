@@ -2,8 +2,7 @@ import type { ActionResult } from "../types";
 import type { OnListsUpdated } from "../adapters";
 import { adaptResponseToActionResult } from "../adapters";
 import { ActionResultFactory } from "@/lib/actions/result-factory";
-
-const API_BASE = "";
+import { apiClient } from "@/lib/api";
 
 export async function runCommandHttp(
   payload: Record<string, unknown>,
@@ -12,10 +11,11 @@ export async function runCommandHttp(
   const commandId = Number(payload.commandId);
   if (Number.isNaN(commandId)) return ActionResultFactory.invalidId();
 
-  const response = await fetch(`${API_BASE}/api/commands/${commandId}/run`, {
-    method: "POST",
-  });
-  return adaptResponseToActionResult(response, onListsUpdated);
+  const res = await apiClient.post(`/api/commands/${commandId}/run`);
+  return adaptResponseToActionResult(
+    { data: res.data, status: res.status },
+    onListsUpdated
+  );
 }
 
 export async function stopCommandHttp(
@@ -25,11 +25,17 @@ export async function stopCommandHttp(
   const commandId = Number(payload.commandId);
   if (Number.isNaN(commandId)) return ActionResultFactory.invalidId();
 
-  const runIdQuery =
-    payload.runId != null ? `?runId=${String(payload.runId)}` : "";
-  const url = `${API_BASE}/api/commands/${commandId}/stop${runIdQuery}`;
-  const response = await fetch(url, { method: "POST" });
-  return adaptResponseToActionResult(response, onListsUpdated);
+  const params =
+    payload.runId != null ? { params: { runId: payload.runId } } : {};
+  const res = await apiClient.post(
+    `/api/commands/${commandId}/stop`,
+    undefined,
+    params
+  );
+  return adaptResponseToActionResult(
+    { data: res.data, status: res.status },
+    onListsUpdated
+  );
 }
 
 export async function restartCommandHttp(
@@ -39,23 +45,22 @@ export async function restartCommandHttp(
   const commandId = Number(payload.commandId);
   if (Number.isNaN(commandId)) return ActionResultFactory.invalidId();
 
-  const response = await fetch(
-    `${API_BASE}/api/commands/${commandId}/restart`,
-    { method: "POST" }
+  const res = await apiClient.post(`/api/commands/${commandId}/restart`);
+  return adaptResponseToActionResult(
+    { data: res.data, status: res.status },
+    onListsUpdated
   );
-  return adaptResponseToActionResult(response, onListsUpdated);
 }
 
 export async function createCommandHttp(
   payload: Record<string, unknown>,
   onListsUpdated: OnListsUpdated
 ): Promise<ActionResult> {
-  const response = await fetch(`${API_BASE}/api/commands`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify((payload.data as object) ?? {}),
-  });
-  return adaptResponseToActionResult(response, onListsUpdated);
+  const res = await apiClient.post("/api/commands", (payload.data as object) ?? {});
+  return adaptResponseToActionResult(
+    { data: res.data, status: res.status },
+    onListsUpdated
+  );
 }
 
 export async function updateCommandHttp(
@@ -65,12 +70,14 @@ export async function updateCommandHttp(
   const commandId = Number(payload.id);
   if (Number.isNaN(commandId)) return ActionResultFactory.invalidId();
 
-  const response = await fetch(`${API_BASE}/api/commands/${commandId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify((payload.data as object) ?? {}),
-  });
-  return adaptResponseToActionResult(response, onListsUpdated);
+  const res = await apiClient.patch(
+    `/api/commands/${commandId}`,
+    (payload.data as object) ?? {}
+  );
+  return adaptResponseToActionResult(
+    { data: res.data, status: res.status },
+    onListsUpdated
+  );
 }
 
 export async function deleteCommandHttp(
@@ -80,8 +87,9 @@ export async function deleteCommandHttp(
   const commandId = Number(payload.id);
   if (Number.isNaN(commandId)) return ActionResultFactory.invalidId();
 
-  const response = await fetch(`${API_BASE}/api/commands/${commandId}`, {
-    method: "DELETE",
-  });
-  return adaptResponseToActionResult(response, onListsUpdated);
+  const res = await apiClient.delete(`/api/commands/${commandId}`);
+  return adaptResponseToActionResult(
+    { data: res.data, status: res.status },
+    onListsUpdated
+  );
 }

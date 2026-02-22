@@ -11,13 +11,13 @@ export async function GET(
   if (Number.isNaN(id)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
-  const row = getCommandById(id) as Record<string, unknown> | undefined;
+  const row = (await getCommandById(id)) as unknown as Record<string, unknown> | undefined;
   if (!row) {
     return NextResponse.json({ error: "Command not found" }, { status: 404 });
   }
-  const runId = getRunIdForCommand(id);
-  const runRow = runId != null ? getRunByIdFull(runId) : null;
-  const lastRun = getLastRunByCommandIdFull(id);
+  const runId = await getRunIdForCommand(id);
+  const runRow = runId != null ? await getRunByIdFull(runId) : null;
+  const lastRun = await getLastRunByCommandIdFull(id);
 
   return NextResponse.json({
     id: row.id,
@@ -52,7 +52,7 @@ export async function PATCH(
 ) {
   const id = Number((await params).id);
   const body = await request.json();
-  const result = updateCommand(id, body);
+  const result = await updateCommand(id, body);
   if (!result.success) {
     return NextResponse.json(
       { error: result.error },
@@ -67,7 +67,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const id = Number((await params).id);
-  const result = deleteCommand(id);
+  const result = await deleteCommand(id);
   if (!result.success) {
     return NextResponse.json(
       { error: result.error },

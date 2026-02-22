@@ -13,13 +13,13 @@ function getSocketIoUrl(): string {
   return window.location.origin;
 }
 
-export type SocketConnectionParams = {
+export interface SocketConnectionParams {
   socketRef: React.MutableRefObject<Socket | null>;
   connectionErrorTimeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
   setReady: (ready: boolean) => void;
   setConnectionError: (error: boolean) => void;
   onMessage: (message: IncomingMessage) => void;
-};
+}
 
 function clearConnectionErrorTimeout(
   timeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>

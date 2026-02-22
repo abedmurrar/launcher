@@ -14,12 +14,12 @@ export function killProcessGroup(pid: number, signal: NodeJS.Signals | number): 
   }
 }
 
-export function killGroupRun(groupRunId: number): void {
+export async function killGroupRun(groupRunId: number): Promise<void> {
   const pids = groupRunIdToPids.get(groupRunId);
   if (pids) {
     pids.forEach((p) => killProcessGroup(p, "SIGTERM"));
     groupRunIdToPids.delete(groupRunId);
   }
-  updateGroupRunFailed(groupRunId);
-  updateRunsKilledByGroupRunId(groupRunId);
+  await updateGroupRunFailed(groupRunId);
+  await updateRunsKilledByGroupRunId(groupRunId);
 }

@@ -5,13 +5,13 @@ import type { CommandListItem, GroupListItem } from "./types";
 import { createHttpListsFetcher } from "./adapters";
 import { HTTP_FALLBACK_INITIAL_MS } from "./constants";
 
-export type InitialLoadFallbackParams = {
+export interface InitialLoadFallbackParams {
   initialLoadDone: boolean;
   connectionError: boolean;
   setCommands: (commands: CommandListItem[]) => void;
   setGroups: (groups: GroupListItem[]) => void;
   setInitialLoadDone: (done: boolean) => void;
-};
+}
 
 const listsFetcher = createHttpListsFetcher();
 

@@ -1,11 +1,11 @@
 "use client";
 
-type EnvFieldsProps = {
+interface EnvFieldsProps {
   entries: [string, string][];
   onAdd: () => void;
   onUpdate: (index: number, isKey: boolean, value: string) => void;
   onRemove: (index: number) => void;
-};
+}
 
 export function EnvFields({ entries, onAdd, onUpdate, onRemove }: EnvFieldsProps) {
   return (

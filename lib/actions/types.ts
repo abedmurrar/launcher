@@ -1,7 +1,16 @@
 import { z } from "zod";
 
-export type OkResult<T = void> = { success: true; data?: T };
-export type ErrResult = { success: false; error: string; code?: number };
+export interface OkResult<T = void> {
+  success: true;
+  data?: T;
+}
+
+export interface ErrResult {
+  success: false;
+  error: string;
+  code?: number;
+}
+
 export type ActionResult<T = void> = OkResult<T> | ErrResult;
 
 export const createCommandSchema = z.object({

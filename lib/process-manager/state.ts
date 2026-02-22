@@ -5,10 +5,10 @@ import { getRunningRunIdByCommandId } from "@/lib/db/queries";
 export type RunStateObserver = () => void;
 
 /** Observer: notified on log chunk and when a run's log stream finishes. */
-export type LogEventsObserver = {
+export interface LogEventsObserver {
   onChunk: (runId: number, content: string, streamType: "stdout" | "stderr") => void;
   onFinished: (runId: number) => void;
-};
+}
 
 /**
  * Singleton: single shared process manager state per process
@@ -67,7 +67,7 @@ class ProcessManagerStateSingleton {
     ProcessManagerStateSingleton.logEventsObservers.forEach((observer) => observer.onFinished(runId));
   }
 
-  static getRunIdForCommand(commandId: number): number | null {
+  static async getRunIdForCommand(commandId: number): Promise<number | null> {
     return getRunningRunIdByCommandId(commandId);
   }
 
@@ -116,7 +116,7 @@ export function notifyLogFinished(runId: number): void {
   ProcessManagerStateSingleton.notifyLogFinished(runId);
 }
 
-export function getRunIdForCommand(commandId: number): number | null {
+export function getRunIdForCommand(commandId: number): Promise<number | null> {
   return ProcessManagerStateSingleton.getRunIdForCommand(commandId);
 }
 

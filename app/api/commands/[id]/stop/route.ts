@@ -9,7 +9,7 @@ export async function POST(
   const { searchParams } = new URL(request.url);
   const runIdParam = searchParams.get("runId");
   const runId = runIdParam != null ? Number(runIdParam) : undefined;
-  const result = stopCommand(commandId, runId);
+  const result = await stopCommand(commandId, runId);
   if (!result.success) {
     return NextResponse.json(
       { error: result.error },

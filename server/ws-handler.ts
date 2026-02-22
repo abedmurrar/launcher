@@ -6,7 +6,7 @@ import {
 } from "../lib/ws-broadcast";
 import { handleAction, isActionType } from "../lib/ws-action-handlers";
 
-export type IncomingMessage = {
+export interface IncomingMessage {
   type: string;
   requestId?: string;
   runId?: number;
@@ -16,11 +16,11 @@ export type IncomingMessage = {
   data?: unknown;
   name?: string;
   commandIds?: number[];
-};
+}
 
 export function handleSocketConnection(socket: Socket): void {
   socket.on("initial", () => {
-    sendInitialDump(socket);
+    void sendInitialDump(socket).catch((err) => console.error("[ws] sendInitialDump failed:", err));
   });
 
   socket.on("subscribe_logs", (runId: unknown) => {
@@ -43,7 +43,7 @@ export function handleSocketConnection(socket: Socket): void {
         socket,
         msg.type,
         msg.requestId,
-        msg as Record<string, unknown>
+        msg as unknown as Record<string, unknown>
       );
     }
   });

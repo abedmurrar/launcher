@@ -14,6 +14,8 @@ import {
   deleteGroupHttp,
   setGroupCommandsHttp,
   runGroupHttp,
+  stopGroupHttp,
+  restartGroupHttp,
 } from "./group-actions";
 
 type OnListsUpdated = (commands: CommandListItem[], groups: GroupListItem[]) => void;
@@ -47,6 +49,10 @@ export async function fetchAction(
         return setGroupCommandsHttp(payload, onListsUpdated);
       case GroupAction.RunGroup:
         return runGroupHttp(payload, onListsUpdated);
+      case GroupAction.StopGroup:
+        return stopGroupHttp(payload, onListsUpdated);
+      case GroupAction.RestartGroup:
+        return restartGroupHttp(payload, onListsUpdated);
       default:
         return { success: false, error: "Unknown action" };
     }

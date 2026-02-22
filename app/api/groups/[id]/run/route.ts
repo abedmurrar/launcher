@@ -6,7 +6,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const groupId = Number((await params).id);
-  const result = runGroup(groupId);
+  const result = await runGroup(groupId);
   if (!result.success) {
     return NextResponse.json(
       { error: result.error },
