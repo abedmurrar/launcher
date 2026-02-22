@@ -1,0 +1,5 @@
+export const ACTION_TIMEOUT_MS = 30_000;
+export const RECONNECT_DELAY_MS = 2_000;
+export const CONNECTION_ERROR_AFTER_MS = 4_000;
+export const HTTP_FALLBACK_INITIAL_MS = 5_000;
+export const POLL_INTERVAL_MS = 1_000;

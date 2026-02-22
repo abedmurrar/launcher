@@ -1,64 +1,60 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import axios from "axios";
+import { apiClient } from "@/lib/api";
+import { useWs } from "@/context/ws";
 
-type LogViewerProps = {
+interface LogViewerProps {
   runId: number;
   onClose: () => void;
-};
+}
 
 export function LogViewer({ runId, onClose }: LogViewerProps) {
   const [logs, setLogs] = useState<{ streamType: "stdout" | "stderr"; data: string }[]>([]);
   const [live, setLive] = useState(true);
+  const [clearing, setClearing] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
+  const { subscribeToLogs, unsubscribeFromLogs } = useWs();
+
+  const clearLogs = useCallback(async () => {
+    if (clearing) return;
+    setClearing(true);
+    try {
+      const res = await apiClient.delete(`/api/runs/${runId}/logs`);
+      if (res.status >= 200 && res.status < 300) {
+        setLogs([]);
+      } else {
+        const errorMessage = (res.data as { error?: string })?.error ?? "Failed to clear logs";
+        alert(errorMessage);
+      }
+    } catch (err) {
+      const message = axios.isAxiosError(err) && err.response?.data?.error
+        ? String(err.response.data.error)
+        : "Failed to clear logs";
+      alert(message);
+    } finally {
+      setClearing(false);
+    }
+  }, [runId, clearing]);
 
   useEffect(() => {
-    let cancelled = false;
-    const ac = new AbortController();
-
-    (async () => {
-      try {
-        const url = `/api/runs/${runId}/logs/stream`;
-        const res = await fetch(url, { signal: ac.signal });
-        if (!res.body || cancelled) return;
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (cancelled) return;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const payload = JSON.parse(line.slice(6));
-                if (payload.event === "finished") {
-                  if (!cancelled) setLive(false);
-                  break;
-                }
-                if (payload.streamType && payload.data !== undefined && !cancelled) {
-                  setLogs((prev) => [...prev, { streamType: payload.streamType, data: payload.data }]);
-                }
-              } catch {
-                // ignore parse errors
-              }
-            }
-          }
-        }
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
-        throw err;
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      ac.abort();
-    };
-  }, [runId]);
+    subscribeToLogs(runId, {
+      onHistory: (chunks) => {
+        setLogs(
+          chunks.map((c) => ({
+            streamType: c.stream_type as "stdout" | "stderr",
+            data: c.content,
+          }))
+        );
+      },
+      onChunk: (streamType, data) => {
+        setLogs((prev) => [...prev, { streamType, data }]);
+      },
+      onFinished: () => setLive(false),
+    });
+    return () => unsubscribeFromLogs(runId);
+  }, [runId, subscribeToLogs, unsubscribeFromLogs]);
 
   useEffect(() => {
     if (preRef.current) preRef.current.scrollTop = preRef.current.scrollHeight;
@@ -71,13 +67,23 @@ export function LogViewer({ runId, onClose }: LogViewerProps) {
           <span className="font-mono text-sm text-zinc-600 dark:text-zinc-400">
             Run #{runId} {live && "(live)"}
           </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1 rounded bg-zinc-300 dark:bg-zinc-600 hover:bg-zinc-400 dark:hover:bg-zinc-500 text-sm"
-          >
-            Close
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={clearLogs}
+              disabled={clearing || logs.length === 0}
+              className="px-3 py-1 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 hover:bg-amber-300 dark:hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              {clearing ? "Clearing…" : "Clear logs"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1 rounded bg-zinc-300 dark:bg-zinc-600 hover:bg-zinc-400 dark:hover:bg-zinc-500 text-sm"
+            >
+              Close
+            </button>
+          </div>
         </div>
         <pre
           ref={preRef}

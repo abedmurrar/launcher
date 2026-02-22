@@ -1,0 +1,15 @@
+---
+description: Knex + SQLite (better-sqlite3) usage for lib/db
+globs: lib/db/**/*.ts
+alwaysApply: false
+---
+
+# Knex (SQLite via better-sqlite3)
+
+**API:** [Knex.js](https://knexjs.org/guide/)
+
+- **Connection:** Single shared DB via **async** `getDb()` from `lib/db/connection.ts`. Returns a Knex instance; **migrations** run on first use (`lib/db/migrations/`). All query code must `await getDb()` and be async.
+- **Queries:** Use the Knex builder: `db('table').where(...).first()`, `.select()`, `.insert()`, `.update()`, `.del()`. Prefer `.where('id', id)` over raw SQL. For SQLite, **insert** returns `[lastInsertRowid]` — use `const [id] = await db('table').insert({...})` to get the new id.
+- **Raw SQL:** Use `db.raw('SQL', [bindings])` when needed (e.g. subqueries, `datetime('now')`). Example: `db('commands').where('id', id).update({ updated_at: db.raw("datetime('now')") })`.
+- **Types:** Row types are **interfaces** in `lib/db/types.ts` (e.g. `CommandRow`, `GroupRow`). Use them for query results; Knex table augmentation in `lib/db/knex-types.d.ts` references them.
+- **Runtime:** Do not use Edge runtime for any route that uses Knex or `child_process`; Node.js only.
