@@ -1,20 +1,67 @@
-import { getRunById, getRunningRunIdByCommandId } from "@/lib/db/queries";
+import {
+  getRunById,
+  getRunningRunIdByCommandId,
+  getRunDetailsById,
+  isRunStillRunning,
+} from "@/lib/db/queries";
 import { runIdToPid, pidMap, getRunIdForCommand } from "./state";
 import { killProcessGroup } from "./kill";
+import { finalizeRun } from "./finalize-run";
+import { isProcessAlive } from "./process-utils";
 
 export async function stopRun(runId: number): Promise<boolean> {
-  const pid = runIdToPid.get(runId);
-  if (pid !== undefined) {
-    const record = pidMap.get(pid);
-    if (record?.childProcess) {
-      return killProcessGroup(pid, "SIGTERM");
+  const memoryPid = runIdToPid.get(runId);
+  if (memoryPid !== undefined) {
+    const record = pidMap.get(memoryPid);
+    const sentKill =
+      record?.childProcess || memoryPid > 0
+        ? killProcessGroup(memoryPid, "SIGTERM")
+        : false;
+    if (sentKill) {
+      return true;
+    }
+    if (!(await isRunStillRunning(runId))) {
+      return true;
     }
   }
+
   const row = await getRunById(runId);
   if (row?.pid) {
-    return killProcessGroup(row.pid, "SIGTERM");
+    const killed = killProcessGroup(row.pid, "SIGTERM");
+    if (killed) {
+      return true;
+    }
+    if (!isProcessAlive(row.pid)) {
+      const details = await getRunDetailsById(runId);
+      if (details && details.status === "running") {
+        await finalizeRun(
+          runId,
+          row.pid,
+          details.command_id,
+          details.group_run_id ?? null,
+          -1,
+          "killed"
+        );
+      }
+      return true;
+    }
+    return false;
   }
-  return false;
+
+  const details = await getRunDetailsById(runId);
+  if (details && details.status === "running") {
+    await finalizeRun(
+      runId,
+      details.pid ?? 0,
+      details.command_id,
+      details.group_run_id ?? null,
+      -1,
+      "killed"
+    );
+    return true;
+  }
+
+  return !(await isRunStillRunning(runId));
 }
 
 export async function stopByCommandId(commandId: number): Promise<boolean> {
@@ -36,8 +83,8 @@ export async function stopByCommandIdAndWait(
     const pollIntervalMs = 50;
     const deadline = timeoutMs > 0 ? Date.now() + timeoutMs : null;
 
-    const check = () => {
-      if (!runIdToPid.has(runId)) {
+    const check = async () => {
+      if (!(await isRunStillRunning(runId))) {
         resolve();
         return;
       }
@@ -46,11 +93,24 @@ export async function stopByCommandIdAndWait(
         if (pid !== undefined) {
           killProcessGroup(pid, "SIGKILL");
         }
+        const details = await getRunDetailsById(runId);
+        if (details && details.status === "running") {
+          await finalizeRun(
+            runId,
+            pid ?? details.pid ?? 0,
+            details.command_id,
+            details.group_run_id ?? null,
+            -1,
+            "killed"
+          );
+        }
         resolve();
         return;
       }
-      setTimeout(check, pollIntervalMs);
+      setTimeout(() => {
+        void check();
+      }, pollIntervalMs);
     };
-    check();
+    void check();
   });
 }

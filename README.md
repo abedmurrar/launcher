@@ -37,7 +37,9 @@ Open [http://localhost:3000](http://localhost:3000). After code changes, run `np
 
 ## Running as a daemon on Linux
 
-To keep the launcher running in the background and survive logouts, use one of the following.
+To keep the launcher running in the background, start on boot, and restart on failure, see **[docs/daemon.md](docs/daemon.md)** (PM2 with nvm, systemd user service, and day-to-day commands).
+
+Quick reference:
 
 ### Option 1: systemd user service (recommended)
 

@@ -70,6 +70,14 @@ export async function getRunByIdFull(runId: number) {
   return db("runs").select("id", "pid", "started_at", "status").where("id", runId).first();
 }
 
+export async function getRunDetailsById(runId: number) {
+  const db = await getDb();
+  return db("runs")
+    .select("id", "pid", "command_id", "group_run_id", "status")
+    .where("id", runId)
+    .first();
+}
+
 export async function getLastRunByCommandId(commandId: number) {
   const db = await getDb();
   return db("runs").select("id").where("command_id", commandId).orderBy("started_at", "desc").first();
@@ -99,6 +107,28 @@ export async function countRunningRunsByGroupRunId(groupRunId: number): Promise<
     .first();
   const count = (row as unknown as { count: number | string })?.count;
   return Number(count ?? 0);
+}
+
+export interface RunningRunRow {
+  id: number;
+  pid: number | null;
+  command_id: number;
+  group_run_id: number | null;
+  started_at: string;
+}
+
+export async function getAllRunningRuns(): Promise<RunningRunRow[]> {
+  const db = await getDb();
+  const rows = await db("runs")
+    .select("id", "pid", "command_id", "group_run_id", "started_at")
+    .where("status", "running");
+  return rows as RunningRunRow[];
+}
+
+export async function isRunStillRunning(runId: number): Promise<boolean> {
+  const db = await getDb();
+  const row = await db("runs").select("id").where({ id: runId, status: "running" }).first();
+  return row != null;
 }
 
 /** Run id and command name for each run in a group run (for group log viewer). */

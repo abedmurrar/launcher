@@ -13,4 +13,5 @@ export { spawnCommand } from "./spawn";
 export { stopRun, stopByCommandId, stopByCommandIdAndWait } from "./stop";
 export { killGroupRun } from "./kill";
 export { registerSSEWriter } from "./log";
+export { reconcileStaleRuns } from "./reconcile";
 export { processManager } from "./facade";

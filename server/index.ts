@@ -3,6 +3,7 @@ import { parse } from "url";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
 import { getDb } from "../lib/db/connection";
+import { reconcileStaleRuns } from "../lib/process-manager/reconcile";
 import { init, registerClient, unregisterClient } from "../lib/ws-broadcast";
 import { handleSocketConnection } from "./ws-handler";
 import { dev, port, SOCKET_IO_PATH } from "./config";
@@ -12,6 +13,7 @@ const handle = app.getRequestHandler();
 
 app.prepare().then(async () => {
   await getDb();
+  await reconcileStaleRuns();
   init();
 
   const server = http.createServer((req, res) => {

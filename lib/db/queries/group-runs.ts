@@ -43,3 +43,24 @@ export async function updateGroupRunFinishedSuccess(id: number): Promise<void> {
     .where({ id, status: "running" })
     .update({ finished_at: db.raw("datetime('now')"), status: "success" });
 }
+
+export interface RunningGroupRunRow {
+  id: number;
+  group_id: number;
+  started_at: string;
+}
+
+export async function getAllRunningGroupRuns(): Promise<RunningGroupRunRow[]> {
+  const db = await getDb();
+  const rows = await db("group_runs")
+    .select("id", "group_id", "started_at")
+    .where("status", "running");
+  return rows as RunningGroupRunRow[];
+}
+
+export async function updateGroupRunKilled(id: number): Promise<void> {
+  const db = await getDb();
+  await db("group_runs")
+    .where("id", id)
+    .update({ finished_at: db.raw("datetime('now')"), status: "killed" });
+}
