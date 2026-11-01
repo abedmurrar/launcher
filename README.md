@@ -15,7 +15,9 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:9555](http://localhost:9555). After code changes, run `npm run dev` to verify the app and server still work.
+Open [http://localhost:9555](http://localhost:9555). After code changes, run `npm test` (vitest) and `npm run dev` to verify the app and server still work.
+
+Tests live in `test/` and use a throwaway DB per file (`LAUNCHER_DATA_DIR`); the Socket.IO tests run the real handler without Next. CI (`.github/workflows/ci.yml`) runs type-check, lint and tests on Node 22 and 24.
 
 ---
 
@@ -36,6 +38,7 @@ Open [http://localhost:9555](http://localhost:9555). After code changes, run `np
 
   | Variable | Default | Meaning |
   |----------|---------|---------|
+  | `LAUNCHER_DATA_DIR` | `./data` | Directory for `launcher.db`. |
   | `LAUNCHER_STOP_GRACE_MS` | `5000` | Time between SIGTERM and SIGKILL when stopping a run. |
   | `LAUNCHER_LOG_FLUSH_MS` / `LAUNCHER_LOG_FLUSH_BYTES` | `100` / `65536` | Log output is buffered and written/broadcast in batches. |
   | `LAUNCHER_LOG_HISTORY_BYTES` | `2097152` | Max log history sent when opening a log viewer (full log via the logs API). |
