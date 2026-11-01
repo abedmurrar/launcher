@@ -4,6 +4,25 @@
   --background: #ffffff;
   --foreground: #18181b;
   color-scheme: light;
+
+  /* ANSI 16-color palette for process output (tuned for a light log background) */
+  --log-bg: #fafafa;
+  --ansi-0: #3f3f46;
+  --ansi-1: #c2410c;
+  --ansi-2: #15803d;
+  --ansi-3: #a16207;
+  --ansi-4: #1d4ed8;
+  --ansi-5: #a21caf;
+  --ansi-6: #0e7490;
+  --ansi-7: #71717a;
+  --ansi-8: #52525b;
+  --ansi-9: #dc2626;
+  --ansi-10: #16a34a;
+  --ansi-11: #ca8a04;
+  --ansi-12: #2563eb;
+  --ansi-13: #c026d3;
+  --ansi-14: #0891b2;
+  --ansi-15: #27272a;
 }
 
 @theme inline {
@@ -18,6 +37,25 @@
     --background: #09090b;
     --foreground: #f4f4f5;
     color-scheme: dark;
+
+    /* ANSI palette for a dark log background */
+    --log-bg: #050505;
+    --ansi-0: #52525b;
+    --ansi-1: #f87171;
+    --ansi-2: #4ade80;
+    --ansi-3: #facc15;
+    --ansi-4: #60a5fa;
+    --ansi-5: #e879f9;
+    --ansi-6: #22d3ee;
+    --ansi-7: #d4d4d8;
+    --ansi-8: #71717a;
+    --ansi-9: #fca5a5;
+    --ansi-10: #86efac;
+    --ansi-11: #fde047;
+    --ansi-12: #93c5fd;
+    --ansi-13: #f0abfc;
+    --ansi-14: #67e8f9;
+    --ansi-15: #fafafa;
   }
 }
 

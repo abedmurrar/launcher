@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runExists, getLogChunksFullByRunId, deleteLogChunksByRunId } from "@/lib/db/queries";
+import { stripAnsi } from "@/lib/ansi";
 
 /**
  * GET /api/runs/:runId/logs[?before=<chunkId>&limit=<n>][&format=text]
  * Without params returns every chunk; with `limit` returns the `limit` chunks before `before` (paging back).
- * `format=text` returns the output as plain text (for "open full log").
+ * `format=text` returns the output as plain text with ANSI escape codes removed (for "open full log").
  */
 export async function GET(
   request: NextRequest,
@@ -27,7 +28,7 @@ export async function GET(
   }
   const chunks = await getLogChunksFullByRunId(runId, { before, limit });
   if (searchParams.get("format") === "text") {
-    return new NextResponse(chunks.map((c) => c.content).join(""), {
+    return new NextResponse(stripAnsi(chunks.map((c) => c.content).join("")), {
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   }

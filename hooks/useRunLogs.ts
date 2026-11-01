@@ -33,6 +33,43 @@ export interface RunLogsState {
  */
 const MAX_CHARS = 4_000_000;
 const MAX_SEGMENTS = 4_000;
+/**
+ * Segments are split at line boundaries once they reach this size, so streaming output only
+ * re-parses/re-renders a small tail segment (and ANSI sequences, which never span lines, are
+ * never cut in half).
+ */
+const SEGMENT_SPLIT_CHARS = 16_000;
+
+/** Append text to a segment list, merging into the last same-stream segment up to the split size. */
+function appendToSegments(
+  segs: LogSegment[],
+  streamType: StreamType,
+  text: string,
+  newId: () => number
+): void {
+  let rest = text;
+  while (rest) {
+    let last = segs[segs.length - 1];
+    const full = last && last.text.length >= SEGMENT_SPLIT_CHARS && last.text.endsWith("\n");
+    if (!last || last.streamType !== streamType || full) {
+      last = { id: newId(), streamType, text: "" };
+      segs.push(last);
+    }
+    const room = SEGMENT_SPLIT_CHARS - last.text.length;
+    let take: number;
+    if (rest.length <= room) {
+      take = rest.length;
+    } else {
+      // Fill up to the size limit, then continue to the end of that line.
+      const nl = rest.indexOf("\n", Math.max(0, room - 1));
+      take = nl === -1 ? rest.length : nl + 1;
+    }
+    // Replace (not mutate) so memoized rows re-render.
+    segs[segs.length - 1] = { ...last, text: last.text + rest.slice(0, take) };
+    rest = rest.slice(take);
+  }
+}
+
 /** Chunks fetched per "load earlier" page. */
 const EARLIER_PAGE = 500;
 
@@ -87,13 +124,7 @@ export function useRunLogs(runId: number) {
   const append = useCallback((streamType: StreamType, text: string) => {
     if (!text) return;
     const segs = segmentsRef.current;
-    const last = segs[segs.length - 1];
-    if (last && last.streamType === streamType) {
-      // Replace (not mutate) so memoized rows re-render.
-      segs[segs.length - 1] = { ...last, text: last.text + text };
-    } else {
-      segs.push({ id: nextIdRef.current++, streamType, text });
-    }
+    appendToSegments(segs, streamType, text, () => nextIdRef.current++);
     charsRef.current += text.length;
 
     while (segs.length > 1 && (charsRef.current > MAX_CHARS || segs.length > MAX_SEGMENTS)) {
@@ -194,19 +225,9 @@ export function useRunLogs(runId: number) {
         const older: LogSegment[] = [];
         for (const row of rows) {
           const streamType: StreamType = row.stream_type === "stderr" ? "stderr" : "stdout";
-          const last = older[older.length - 1];
-          if (last && last.streamType === streamType) last.text += row.content;
-          else older.push({ id: prependIdRef.current--, streamType, text: row.content });
+          appendToSegments(older, streamType, row.content, () => prependIdRef.current--);
         }
-        const segs = segmentsRef.current;
-        const first = segs[0];
-        const tail = older[older.length - 1];
-        if (first && tail.streamType === first.streamType) {
-          // Merge the boundary into the existing first segment (keeps its stable key).
-          segs[0] = { ...first, text: tail.text + first.text };
-          older.pop();
-        }
-        segmentsRef.current = [...older, ...segs];
+        segmentsRef.current = [...older, ...segmentsRef.current];
         charsRef.current += rows.reduce((n, r) => n + r.content.length, 0);
         firstIdRef.current = rows[0].id;
       }
