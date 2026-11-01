@@ -73,6 +73,10 @@ pm2 status launcher
 
 Open [http://localhost:9555](http://localhost:9555).
 
+### Restarts are safe for running commands
+
+Managed commands write their output to files under `data/logs/`, so `pm2 restart launcher` (or a crash) does not stop them. On startup the launcher re-adopts still-running commands and resumes their logs where it left off.
+
 ### After code changes
 
 ```bash

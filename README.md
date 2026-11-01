@@ -44,6 +44,8 @@ Tests live in `test/` and use a throwaway DB per file (`LAUNCHER_DATA_DIR`); the
   | `LAUNCHER_LOG_HISTORY_BYTES` | `2097152` | Max log history sent when opening a log viewer (full log via the logs API). |
   | `LAUNCHER_LOG_RETAIN_RUNS` | `20` | Keep logs for the newest N runs per command. |
   | `LAUNCHER_LOG_RETAIN_DAYS` | `30` | Also drop logs older than N days (`0` = no age limit). The latest run of each command is always kept. |
+  | `LAUNCHER_LOG_MAX_RUN_BYTES` | `52428800` | Cap on stored log per run (oldest output trimmed by retention; `0` = no cap). |
+  | `LAUNCHER_LOG_FILE_COMPACT_BYTES` | `67108864` | Truncate a run's output file once fully ingested and larger than this. |
   | `LAUNCHER_LIST_DEBOUNCE_MS` | `150` | Coalesces command/group list broadcasts. |
   | `LAUNCHER_GIT_BRANCH_TTL_MS` | `10000` | Cache TTL for the git branch shown per command. |
 - **Data:** SQLite DB and data dir are created at `./data/` under the **current working directory** when the app starts. Run the app from the project root so `data/launcher.db` lives in the repo (or set `cwd` when running as a daemon).
@@ -240,7 +242,8 @@ All handlers that use the DB or `child_process` live under `app/api/` and use th
 - **Spawn:** `spawn(command, args, { cwd, env: { ...process.env, ...commandEnv } })`. The `command` is parsed (e.g. shell for pipes/redirects); see “Open decisions” below.
 - **PID map:** Store `run_id`, `command_id`, `ChildProcess`; on exit, update `runs` (finished_at, exit_code, status) and remove from map.
 - **Group run:** For each command in the group, spawn and record run_id; on any non-zero exit, kill remaining processes for that group run and update all runs and group_run status.
-- **Logging:** stdout/stderr are buffered per run and flushed every ~100 ms (or 64 KB) as one DB transaction plus one `log_batch` Socket.IO emit to the `run:<id>` room. Batches carry the last chunk id so clients de-duplicate against history.
+- **Output files (survive restarts):** on Linux/macOS each run writes stdout/stderr to `data/logs/<runId>.stdout|.stderr` (not pipes) and reads stdin from a FIFO that never reaches EOF, so managed processes keep running when the launcher restarts or crashes. The launcher tails the files every ~100 ms and ingests new bytes into `log_chunks` together with the file offsets in one transaction (`runs.stdout_offset/stderr_offset`), so after a restart it re-adopts the process and resumes exactly where it stopped — no gaps, no duplicates. Files are deleted once the run finishes; a fully ingested file over 64 MB is truncated in place. Windows falls back to pipes.
+- **Logging:** ingested output is emitted as one `log_batch` Socket.IO event per tick to the `run:<id>` room. Batches carry the last chunk id so clients de-duplicate against history. Trade-off: the relative order of stdout vs stderr lines written within the same ~100 ms tick is not preserved.
 - **Stopping:** SIGTERM to the process group, then SIGKILL after `LAUNCHER_STOP_GRACE_MS`; the result reports `forced: true` when SIGKILL was needed.
 - **Concurrency:** partial unique indexes allow at most one running run per command and per group; actions on the same command/group are serialized.
 - **Shared state:** process/socket/DB state lives on `globalThis` (`lib/global-singleton.ts`) so the custom server and Next route handlers share one instance.

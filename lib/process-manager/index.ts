@@ -10,5 +10,6 @@ export { spawnCommand } from "./spawn";
 export { stopRun, stopByCommandId, stopByCommandIdAndWait, type StopResult } from "./stop";
 export { killGroupRun } from "./kill";
 export { flushAllLogs } from "./log";
+export { stopAllTailing } from "./log-tailer";
 export { reconcileStaleRuns } from "./reconcile";
 export { processManager } from "./facade";

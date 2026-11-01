@@ -19,6 +19,9 @@ export interface RunRow {
   finished_at: string | null;
   exit_code: number | null;
   status: string;
+  /** Bytes of the run's stdout/stderr log files already ingested into log_chunks. */
+  stdout_offset: number;
+  stderr_offset: number;
 }
 
 export interface LogChunkRow {

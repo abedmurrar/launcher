@@ -3,7 +3,11 @@ import { config } from "@/lib/config";
 
 export async function runLogRetention(): Promise<void> {
   try {
-    const deleted = await pruneLogChunks(config.logRetainRunsPerCommand, config.logRetainDays);
+    const deleted = await pruneLogChunks(
+      config.logRetainRunsPerCommand,
+      config.logRetainDays,
+      config.logMaxRunBytes
+    );
     if (deleted > 0) {
       console.log(`[retention] deleted ${deleted} old log chunks`);
     }

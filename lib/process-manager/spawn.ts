@@ -6,6 +6,8 @@ import { updateRunPid } from "@/lib/db/queries";
 import { pidMap, runIdToPid, groupRunIdToPids, notifyRunStateChange } from "./state";
 import { emitLogChunk } from "./log";
 import { clearRunFromMaps, finalizeRun, type RunFinalStatus } from "./finalize-run";
+import { fileStdioSupported, openRunFiles, removeRunFiles, type RunFiles } from "./run-files";
+import { startTailing } from "./log-tailer";
 
 /** After "exit", how long to wait for stdio to drain ("close") before finalizing anyway. */
 const CLOSE_AFTER_EXIT_MS = 2_000;
@@ -39,6 +41,16 @@ export async function spawnCommand(
   const resolved = resolveCwd(cwd);
   const envWithBase = { ...process.env, ...env };
 
+  // POSIX: output goes to files the launcher tails, so the process survives launcher restarts.
+  let files: RunFiles | null = null;
+  if (fileStdioSupported()) {
+    try {
+      files = openRunFiles(runId);
+    } catch (err) {
+      console.error(`[run ${runId}] could not create log files, falling back to pipes:`, err);
+    }
+  }
+
   let child: ChildProcess;
   try {
     child = nodeSpawn(command, {
@@ -46,12 +58,17 @@ export async function spawnCommand(
       cwd: resolved.cwd,
       env: envWithBase,
       detached: process.platform !== "win32",
-      // stdin stays an open pipe (as before): some tools (e.g. esbuild --watch) exit on stdin EOF.
-      stdio: ["pipe", "pipe", "pipe"],
+      // Pipe fallback: stdin stays an open pipe (as before) since some tools exit on stdin EOF.
+      stdio: files?.stdio ?? ["pipe", "pipe", "pipe"],
     });
   } catch (err) {
+    files?.closeParentFds();
+    if (files) removeRunFiles(runId);
     console.error("[run] spawn failed:", err instanceof Error ? err.message : err);
     throw err;
+  } finally {
+    // The child has its own copies now.
+    files?.closeParentFds();
   }
 
   const pid = child.pid;
@@ -62,6 +79,7 @@ export async function spawnCommand(
       new Promise((resolve) => setTimeout(() => resolve([new Error("Failed to start process")]), 1_000)),
     ])) as [Error];
     console.error("[run] spawn failed:", err.message);
+    if (files) removeRunFiles(runId);
     throw err;
   }
 
@@ -74,8 +92,10 @@ export async function spawnCommand(
   }
 
   if (resolved.warning) emitLogChunk(runId, resolved.warning, "stderr");
+  if (files) startTailing(runId);
 
-  // Decode as UTF-8 via StringDecoder so multi-byte characters split across chunks stay intact.
+  // Pipe mode only (no-ops with file stdio). Decode as UTF-8 via StringDecoder so multi-byte
+  // characters split across chunks stay intact.
   child.stdout?.setEncoding("utf8");
   child.stderr?.setEncoding("utf8");
   child.stdout?.on("data", (data: string) => emitLogChunk(runId, data, "stdout"));
