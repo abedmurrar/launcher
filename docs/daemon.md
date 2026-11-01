@@ -40,7 +40,7 @@ cd /path/to/launcher
 pm2 start ecosystem.config.js
 ```
 
-`ecosystem.config.js` sets the production env, keeps run logs for 7 days (`LAUNCHER_LOG_RETAIN_DAYS`), adds exponential restart backoff (so a crash loop can't flood the logs) and timestamps log lines. Edit its `env` block and apply with `pm2 restart ecosystem.config.js --update-env && pm2 save`.
+`ecosystem.config.js` runs the compiled server (`dist/server.cjs`, built by `yarn build`) with plain `node`, sets the production env, keeps run logs for 7 days (`LAUNCHER_LOG_RETAIN_DAYS`), adds exponential restart backoff (so a crash loop can't flood the logs) and timestamps log lines. Edit its `env` block and apply with `pm2 restart ecosystem.config.js --update-env && pm2 save`.
 
 ### 3b. Keep PM2's own log files small
 
