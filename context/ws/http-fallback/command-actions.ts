@@ -88,6 +88,22 @@ export async function stopAllHttp(
   return adaptResponseToActionResult({ data: res.data, status: res.status }, onListsUpdated);
 }
 
+export async function restoreHttp(
+  _payload: Record<string, unknown>,
+  onListsUpdated: OnListsUpdated
+): Promise<ActionResult> {
+  const res = await apiClient.post("/api/restore");
+  return adaptResponseToActionResult({ data: res.data, status: res.status }, onListsUpdated);
+}
+
+export async function dismissRestoreHttp(
+  _payload: Record<string, unknown>,
+  onListsUpdated: OnListsUpdated
+): Promise<ActionResult> {
+  const res = await apiClient.delete("/api/restore");
+  return adaptResponseToActionResult({ data: res.data, status: res.status }, onListsUpdated);
+}
+
 export async function deleteCommandHttp(
   payload: Record<string, unknown>,
   onListsUpdated: OnListsUpdated

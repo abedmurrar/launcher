@@ -12,6 +12,9 @@ import { Sidebar } from "./Sidebar";
 import { CommandRow, GroupRow, SectionHeader } from "./rows";
 import { CommandDetail, GroupDetail, NewCommandPanel, NewGroupPanel } from "./panels";
 import { useNav, type Selection, type View } from "./useNav";
+import { OfflineBanner, RestoreBanner } from "./Banners";
+import { useToast } from "@/components/shared/Toast";
+import { CommandAction } from "@/lib/ws-action-handlers/types";
 
 const VIEW_TITLES: Record<View, string> = { running: "Running", commands: "Commands", groups: "Groups" };
 
@@ -27,7 +30,43 @@ function isTyping(target: EventTarget | null): boolean {
 }
 
 export function AppShell() {
-  const { commands, groups, ready, initialLoadDone, connectionError } = useWs();
+  const { commands, groups, ready, initialLoadDone, connectionError, restoreOffers, instanceId, lastSyncAt, sendAction } =
+    useWs();
+  const { toast } = useToast();
+
+  // Offline detection: the socket is down and nothing has been synced (HTTP fallback) for 3s.
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    if (ready) return;
+    const timer = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, [ready]);
+  const offline = initialLoadDone && !ready && now - lastSyncAt > 3_000;
+
+  // Tell the user when the launcher restarted underneath them (state was reconciled).
+  const prevInstanceRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!instanceId) return;
+    if (prevInstanceRef.current && prevInstanceRef.current !== instanceId) {
+      toast("The launcher restarted. Showing its current state.", "info");
+    }
+    prevInstanceRef.current = instanceId;
+  }, [instanceId, toast]);
+
+  const restore = async () => {
+    const result = await sendAction(CommandAction.Restore, {});
+    if (!result.success) {
+      toast(result.error ?? "Restore failed", "error");
+      return;
+    }
+    const data = result.data as { restored?: number; failed?: string[] } | undefined;
+    if (data?.failed?.length) toast(`Some couldn't be restored: ${data.failed.join("; ")}`, "error");
+    else toast(`Restored ${data?.restored ?? 0}`, "success");
+  };
+  const dismissRestore = async () => {
+    const result = await sendAction(CommandAction.DismissRestore, {});
+    if (!result.success) toast(result.error ?? "Failed to dismiss", "error");
+  };
   const { view, selection, navigate } = useNav();
   const commandActions = useCommandActions();
   const groupActions = useGroupActions();
@@ -134,6 +173,7 @@ export function AppShell() {
         key={`c${selectedCommand.id}`}
         command={selectedCommand}
         actions={commandActions}
+        stale={offline}
         onClose={closePanel}
         onDeleted={closePanel}
       />
@@ -145,6 +185,7 @@ export function AppShell() {
         group={selectedGroup}
         commands={commands}
         actions={groupActions}
+        stale={offline}
         onClose={closePanel}
         onDeleted={closePanel}
         onSelectCommand={(id) => select({ kind: "command", id })}
@@ -172,6 +213,7 @@ export function AppShell() {
     <CommandRow
       key={`c${c.id}`}
       command={c}
+      stale={offline}
       selected={isSelected("command", c.id)}
       onSelect={() => select({ kind: "command", id: c.id })}
       onRun={() => commandActions.run(c.id)}
@@ -184,6 +226,7 @@ export function AppShell() {
       key={`g${g.id}`}
       group={g}
       memberNames={memberNames(g)}
+      stale={offline}
       selected={isSelected("group", g.id)}
       pending={groupActions.pending[g.id] ?? null}
       onSelect={() => select({ kind: "group", id: g.id })}
@@ -245,6 +288,9 @@ export function AppShell() {
             <StopAllButton />
           </div>
         </header>
+
+        {offline && <OfflineBanner since={lastSyncAt} />}
+        {!offline && <RestoreBanner offers={restoreOffers} onRestore={restore} onDismiss={dismissRestore} />}
 
         <div className="flex min-h-0 flex-1">
           <div ref={listRef} className="min-w-0 flex-1 overflow-y-auto">

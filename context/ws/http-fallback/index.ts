@@ -8,6 +8,8 @@ import {
   updateCommandHttp,
   deleteCommandHttp,
   stopAllHttp,
+  restoreHttp,
+  dismissRestoreHttp,
 } from "./command-actions";
 import {
   createGroupHttp,
@@ -42,6 +44,10 @@ export async function fetchAction(
         return deleteCommandHttp(payload, onListsUpdated);
       case CommandAction.StopAll:
         return stopAllHttp(payload, onListsUpdated);
+      case CommandAction.Restore:
+        return restoreHttp(payload, onListsUpdated);
+      case CommandAction.DismissRestore:
+        return dismissRestoreHttp(payload, onListsUpdated);
       case GroupAction.CreateGroup:
         return createGroupHttp(payload, onListsUpdated);
       case GroupAction.UpdateGroup:

@@ -13,6 +13,7 @@ export interface CommandListItem {
   last_run_id?: number;
   last_run_status?: string;
   last_end_reason?: string;
+  auto_restart?: boolean;
   pid?: number;
   /** Git branch at cwd, if the directory is a git repo */
   git_branch?: string | null;
@@ -33,6 +34,16 @@ export interface GroupListItem {
 export interface LogChunk {
   stream_type: string;
   content: string;
+}
+
+export interface RestoreOffer {
+  id: number;
+  kind: "command" | "group";
+  targetId: number;
+  name: string;
+  /** "reboot" | "launcher_down" */
+  reason: string;
+  autoRestart: boolean;
 }
 
 export interface LiveLogChunk {
@@ -72,6 +83,12 @@ export interface WsContextValue {
   ready: boolean;
   initialLoadDone: boolean;
   connectionError: boolean;
+  /** Things that were running before a reboot / launcher crash, offered for restore. */
+  restoreOffers: RestoreOffer[];
+  /** Changes when the launcher restarts. */
+  instanceId: string | null;
+  /** When the lists were last received from the server (ms epoch), 0 = never. */
+  lastSyncAt: number;
   sendAction: (type: string, payload: Record<string, unknown>) => Promise<ActionResult>;
   subscribeToLogs: (runId: number, callbacks: LogCallbacks) => void;
   unsubscribeFromLogs: (runId: number) => void;
@@ -90,4 +107,6 @@ export type IncomingMessage =
       live?: boolean;
     }
   | { type: "log_batch"; runId?: number; chunks?: LiveLogChunk[]; lastId?: number }
-  | { type: "log_finished"; runId?: number };
+  | { type: "log_finished"; runId?: number }
+  | { type: "restore_offers"; data: unknown }
+  | { type: "hello"; instanceId?: string };

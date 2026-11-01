@@ -8,6 +8,8 @@ export interface CommandRow {
   updated_at: string;
   last_run_at: string | null;
   last_exit_code: number | null;
+  /** 1 = restart automatically after a reboot / launcher crash */
+  auto_restart: number;
 }
 
 export interface RunRow {

@@ -7,6 +7,7 @@ import {
   deleteCommand,
 } from "@/lib/actions/commands";
 import { stopAll } from "@/lib/actions/stop-all";
+import { restoreAll, dismissRestore } from "@/lib/actions/restore";
 import type { ActionPayload, ActionResult } from "./types";
 import { CommandAction } from "./types";
 import { parseId, parseOptionalRunId } from "./reply";
@@ -27,6 +28,10 @@ export async function handleCommandAction(type: string, payload: ActionPayload):
       return deleteCommand(parseId(payload.id));
     case CommandAction.StopAll:
       return stopAll();
+    case CommandAction.Restore:
+      return restoreAll();
+    case CommandAction.DismissRestore:
+      return dismissRestore();
     default:
       return null;
   }

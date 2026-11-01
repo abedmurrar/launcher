@@ -105,6 +105,8 @@ export function useSocketConnection(params: SocketConnectionParams): void {
       forward({ type: "log_batch", ...p })
     );
     socket.on("log_finished", (p: { runId?: number }) => forward({ type: "log_finished", ...p }));
+    socket.on("restore_offers", (data: unknown) => forward({ type: "restore_offers", data }));
+    socket.on("hello", (p: { instanceId?: string }) => forward({ type: "hello", ...p }));
 
     return () => {
       clearErrorTimer();

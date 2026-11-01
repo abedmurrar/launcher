@@ -14,10 +14,11 @@ export async function insertCommand(
   name: string,
   command: string,
   cwd: string,
-  env: string
+  env: string,
+  autoRestart = false
 ): Promise<number> {
   const db = await getDb();
-  const [id] = await db("commands").insert({ name, command, cwd, env });
+  const [id] = await db("commands").insert({ name, command, cwd, env, auto_restart: autoRestart ? 1 : 0 });
   return id;
 }
 
@@ -80,13 +81,14 @@ export interface CommandListRow {
   last_run_id: number | null;
   last_run_status: string | null;
   last_end_reason: string | null;
+  auto_restart: number;
 }
 
 /** Commands with their running run and latest run, in one query (most recently run first). */
 export async function listCommandsForList(): Promise<CommandListRow[]> {
   const db = await getDb();
   return (await db.raw(
-    `SELECT c.id, c.name, c.command, c.cwd, c.env, c.created_at, c.updated_at,
+    `SELECT c.id, c.name, c.command, c.cwd, c.env, c.created_at, c.updated_at, c.auto_restart,
             c.last_run_at, c.last_exit_code,
             r.id AS run_id, r.pid AS run_pid,
             (SELECT lr.id FROM runs lr WHERE lr.command_id = c.id ORDER BY lr.id DESC LIMIT 1) AS last_run_id,
@@ -101,7 +103,7 @@ export async function listCommandsForList(): Promise<CommandListRow[]> {
 /** Update any subset of a command's editable fields in one statement. */
 export async function updateCommandFields(
   id: number,
-  fields: { name?: string; command?: string; cwd?: string; env?: string }
+  fields: { name?: string; command?: string; cwd?: string; env?: string; auto_restart?: number }
 ): Promise<void> {
   const patch = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
   if (Object.keys(patch).length === 0) return;

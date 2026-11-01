@@ -11,6 +11,7 @@ export {
   deleteCommand,
 } from "./commands";
 export { stopAll } from "./stop-all";
+export { restoreAll, dismissRestore, getRestoreOffers, autoRestartAfterStartup } from "./restore";
 export {
   createGroup,
   updateGroup,

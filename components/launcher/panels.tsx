@@ -46,16 +46,19 @@ function Meta({ icon, label, children }: { icon: ReactNode; label: string; child
 export function CommandDetail({
   command: c,
   actions,
+  stale = false,
   onClose,
   onDeleted,
 }: {
   command: CommandListItem;
   actions: CommandActions;
+  /** Launcher unreachable: actions disabled. */
+  stale?: boolean;
   onClose: () => void;
   onDeleted: () => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const state = runStateOf(c.running, c.last_run_status);
+  const state = runStateOf(c.running, c.last_run_status, stale);
   const lastRun = parseDbDate(c.last_run_at);
   const logRunId = c.run_id ?? c.last_run_id;
   const envKeys = Object.keys(c.env ?? {});
@@ -87,6 +90,7 @@ export function CommandDetail({
           size="md"
           running={c.running}
           runId={c.run_id}
+          disabled={stale}
           onRun={() => actions.run(c.id)}
           onStop={() => actions.stop(c.id, c.run_id)}
           onRestart={() => actions.restart(c.id)}
@@ -118,7 +122,7 @@ export function CommandDetail({
       {editing ? (
         <div className="overflow-auto p-4">
           <CommandForm
-            initial={{ name: c.name, command: c.command, cwd: c.cwd, env: c.env }}
+            initial={{ name: c.name, command: c.command, cwd: c.cwd, env: c.env, autoRestart: !!c.auto_restart }}
             onSubmit={async (data) => {
               if (await actions.update(c.id, data)) setEditing(false);
             }}
@@ -211,6 +215,7 @@ export function GroupDetail({
   group: g,
   commands,
   actions,
+  stale = false,
   onClose,
   onDeleted,
   onSelectCommand,
@@ -218,13 +223,14 @@ export function GroupDetail({
   group: GroupListItem;
   commands: CommandListItem[];
   actions: GroupActions;
+  stale?: boolean;
   onClose: () => void;
   onDeleted: () => void;
   onSelectCommand: (id: number) => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [editingMembers, setEditingMembers] = useState(false);
-  const state = runStateOf(g.running, g.last_run?.status);
+  const state = runStateOf(g.running, g.last_run?.status, stale);
   const byId = useMemo(() => new Map(commands.map((c) => [c.id, c])), [commands]);
   const members = g.command_ids.map((id) => byId.get(id)).filter(Boolean) as CommandListItem[];
   const groupRunId = g.running_group_run_id ?? g.last_run?.id;
@@ -270,7 +276,7 @@ export function GroupDetail({
           running={g.running}
           runId={g.running_group_run_id}
           pending={actions.pending[g.id] ?? null}
-          disabled={g.command_ids.length === 0}
+          disabled={stale || g.command_ids.length === 0}
           onRun={() => actions.run(g.id)}
           onStop={() => actions.stop(g.id)}
           onRestart={() => actions.restart(g.id)}

@@ -19,6 +19,8 @@ export interface CommandListItem {
   last_run_status?: string;
   /** Why the most recent run ended (see EndReason). */
   last_end_reason?: string;
+  /** Restart automatically after a reboot / launcher crash. */
+  auto_restart: boolean;
   pid?: number;
   /** Git branch at cwd, if the directory is a git repo */
   git_branch?: string | null;
@@ -43,6 +45,7 @@ export async function buildCommandsList(): Promise<CommandListItem[]> {
     last_run_id: c.last_run_id ?? undefined,
     last_run_status: c.last_run_status ?? undefined,
     last_end_reason: c.last_end_reason ?? undefined,
+    auto_restart: Boolean(c.auto_restart),
     pid: c.run_pid ?? undefined,
     git_branch: branches[i] ?? undefined,
   }));

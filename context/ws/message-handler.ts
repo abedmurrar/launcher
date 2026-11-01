@@ -1,4 +1,4 @@
-import type { CommandListItem, GroupListItem, IncomingMessage, LogCallbacks } from "./types";
+import type { CommandListItem, GroupListItem, IncomingMessage, LogCallbacks, RestoreOffer } from "./types";
 import { updateCommandsAndNotify, updateGroupsAndNotify } from "./lists-update-subject";
 
 export interface MessageHandlerCallbacks {
@@ -7,6 +7,9 @@ export interface MessageHandlerCallbacks {
   setInitialLoadDone: (done: boolean) => void;
   setConnectionError: (error: boolean) => void;
   getLogSubscribers: () => Map<number, LogCallbacks>;
+  setRestoreOffers: (offers: RestoreOffer[]) => void;
+  setInstanceId: (id: string) => void;
+  markSynced: () => void;
 }
 
 export function handleIncomingMessage(
@@ -21,7 +24,16 @@ export function handleIncomingMessage(
         updateCommandsAndNotify(commandsList);
         callbacks.setInitialLoadDone(true);
         callbacks.setConnectionError(false);
+        callbacks.markSynced();
       }
+      break;
+
+    case "restore_offers":
+      if (Array.isArray(message.data)) callbacks.setRestoreOffers(message.data as RestoreOffer[]);
+      break;
+
+    case "hello":
+      if (typeof message.instanceId === "string") callbacks.setInstanceId(message.instanceId);
       break;
 
     case "groups":
