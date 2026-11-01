@@ -11,6 +11,7 @@ export interface CommandListItem {
   running: boolean;
   run_id?: number;
   last_run_id?: number;
+  last_run_status?: string;
   pid?: number;
   /** Git branch at cwd, if the directory is a git repo */
   git_branch?: string | null;
@@ -43,6 +44,8 @@ export interface LogHistoryMeta {
   truncated: boolean;
   /** DB id of the newest chunk in the history (0 if none). */
   lastId: number;
+  /** DB id of the oldest chunk in the history (0 if none). */
+  firstId: number;
   /** Whether the run is still running. */
   live: boolean;
 }
@@ -82,6 +85,7 @@ export type IncomingMessage =
       chunks?: LogChunk[];
       truncated?: boolean;
       lastId?: number;
+      firstId?: number;
       live?: boolean;
     }
   | { type: "log_batch"; runId?: number; chunks?: LiveLogChunk[]; lastId?: number }

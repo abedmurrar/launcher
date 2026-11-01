@@ -16,6 +16,7 @@ export async function sendLogHistoryToClient(socket: Socket, runId: number): Pro
     chunks: tail.chunks.map((c) => ({ stream_type: c.stream_type, content: c.content })),
     truncated: tail.truncated,
     lastId: tail.lastId,
+    firstId: tail.firstId,
   });
 }
 

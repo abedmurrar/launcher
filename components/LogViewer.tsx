@@ -13,7 +13,8 @@ interface LogViewerProps {
 }
 
 export function LogViewer({ runId, onClose }: LogViewerProps) {
-  const { segments, truncated, live, loaded, clear } = useRunLogs(runId);
+  const { segments, truncated, live, loaded, clear, canLoadEarlier, loadingEarlier, loadEarlier } =
+    useRunLogs(runId);
   const [clearing, setClearing] = useState(false);
   const { toast } = useToast();
 
@@ -67,6 +68,10 @@ export function LogViewer({ runId, onClose }: LogViewerProps) {
           segments={segments}
           truncated={truncated}
           loaded={loaded}
+          runId={runId}
+          canLoadEarlier={canLoadEarlier}
+          loadingEarlier={loadingEarlier}
+          onLoadEarlier={loadEarlier}
           className="flex-1 p-4 text-sm"
         />
       </div>

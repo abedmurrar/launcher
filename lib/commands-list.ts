@@ -15,6 +15,8 @@ export interface CommandListItem {
   running: boolean;
   run_id?: number;
   last_run_id?: number;
+  /** Status of the most recent run: running | success | failed | killed */
+  last_run_status?: string;
   pid?: number;
   /** Git branch at cwd, if the directory is a git repo */
   git_branch?: string | null;
@@ -37,6 +39,7 @@ export async function buildCommandsList(): Promise<CommandListItem[]> {
     running: c.run_id != null,
     run_id: c.run_id ?? undefined,
     last_run_id: c.last_run_id ?? undefined,
+    last_run_status: c.last_run_status ?? undefined,
     pid: c.run_pid ?? undefined,
     git_branch: branches[i] ?? undefined,
   }));

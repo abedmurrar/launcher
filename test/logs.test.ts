@@ -37,6 +37,7 @@ describe("logs", () => {
     expect(tail.chunks.length).toBe(11);
     const all = await getLogChunksFullByRunId(runId);
     expect(tail.lastId).toBe(all.at(-1)!.id);
+    expect(tail.firstId).toBe(tail.chunks[0].id);
 
     const page = await getLogChunksFullByRunId(runId, { before: tail.chunks[0].id, limit: 5 });
     expect(page.map((c) => c.id)).toEqual(all.slice(-16, -11).map((c) => c.id));

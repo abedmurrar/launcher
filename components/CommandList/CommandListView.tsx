@@ -162,6 +162,9 @@ function CommandListItemView({
             <>
               Last run: {new Date(c.last_run_at).toLocaleString()}
               {c.last_exit_code != null && ` (exit ${c.last_exit_code})`}
+              {c.last_run_status && c.last_run_status !== "running" && (
+                <RunStatusBadge status={c.last_run_status} />
+              )}
             </>
           ) : (
             "Last run: —"
@@ -180,5 +183,23 @@ function CommandListItemView({
         />
       </div>
     </li>
+  );
+}
+
+const statusClasses: Record<string, string> = {
+  success: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  failed: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  killed: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+};
+
+function RunStatusBadge({ status }: { status: string }) {
+  return (
+    <span
+      className={`ml-2 inline-block rounded px-1.5 py-px text-[11px] font-medium ${
+        statusClasses[status] ?? "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300"
+      }`}
+    >
+      {status}
+    </span>
   );
 }
