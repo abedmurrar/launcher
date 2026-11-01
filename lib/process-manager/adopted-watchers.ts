@@ -1,4 +1,9 @@
-const watchers = new Map<number, ReturnType<typeof setInterval>>();
+import { globalSingleton } from "@/lib/global-singleton";
+
+const watchers = globalSingleton(
+  "adopted-watchers",
+  () => new Map<number, ReturnType<typeof setInterval>>()
+);
 
 export function registerWatcher(runId: number, interval: ReturnType<typeof setInterval>): void {
   stopWatcher(runId);

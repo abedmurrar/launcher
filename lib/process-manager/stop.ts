@@ -1,116 +1,56 @@
-import {
-  getRunById,
-  getRunningRunIdByCommandId,
-  getRunDetailsById,
-  isRunStillRunning,
-} from "@/lib/db/queries";
-import { runIdToPid, pidMap, getRunIdForCommand } from "./state";
-import { killProcessGroup } from "./kill";
+import { getRunDetailsById, getRunningRunIdByCommandId, isRunStillRunning } from "@/lib/db/queries";
+import { config } from "@/lib/config";
+import { runIdToPid } from "./state";
+import { terminateProcessGroup } from "./kill";
 import { finalizeRun } from "./finalize-run";
-import { isProcessAlive } from "./process-utils";
+import { isProcessGroupAlive, waitFor } from "./process-utils";
 
-export async function stopRun(runId: number): Promise<boolean> {
-  const memoryPid = runIdToPid.get(runId);
-  if (memoryPid !== undefined) {
-    const record = pidMap.get(memoryPid);
-    const sentKill =
-      record?.childProcess || memoryPid > 0
-        ? killProcessGroup(memoryPid, "SIGTERM")
-        : false;
-    if (sentKill) {
-      return true;
-    }
-    if (!(await isRunStillRunning(runId))) {
-      return true;
-    }
-  }
+export interface StopResult {
+  /** False only when the run does not exist. */
+  stopped: boolean;
+  /** True when the process ignored SIGTERM and was SIGKILLed. */
+  forced: boolean;
+}
 
-  const row = await getRunById(runId);
-  if (row?.pid) {
-    const killed = killProcessGroup(row.pid, "SIGTERM");
-    if (killed) {
-      return true;
-    }
-    if (!isProcessAlive(row.pid)) {
-      const details = await getRunDetailsById(runId);
-      if (details && details.status === "running") {
-        await finalizeRun(
-          runId,
-          row.pid,
-          details.command_id,
-          details.group_run_id ?? null,
-          -1,
-          "killed"
-        );
-      }
-      return true;
-    }
-    return false;
-  }
+/** How long to wait for the exit handler / adopted watcher to finalize after the process is gone. */
+const FINALIZE_WAIT_MS = 3_000;
 
+/**
+ * Stop a run: SIGTERM its process group, escalate to SIGKILL after the grace period,
+ * and make sure the run is finalized in the DB even if no exit event arrives.
+ */
+export async function stopRun(runId: number, graceMs: number = config.stopGraceMs): Promise<StopResult> {
   const details = await getRunDetailsById(runId);
-  if (details && details.status === "running") {
-    await finalizeRun(
-      runId,
-      details.pid ?? 0,
-      details.command_id,
-      details.group_run_id ?? null,
-      -1,
-      "killed"
-    );
-    return true;
+  if (!details) return { stopped: false, forced: false };
+  if (details.status !== "running") return { stopped: true, forced: false };
+
+  const memoryPid = runIdToPid.get(runId);
+  const pid = memoryPid ?? details.pid ?? 0;
+  let forced = false;
+
+  if (pid > 0 && isProcessGroupAlive(pid)) {
+    ({ forced } = await terminateProcessGroup(pid, graceMs));
   }
 
-  return !(await isRunStillRunning(runId));
+  // Tracked processes are finalized by their exit handler / watcher; give it a moment.
+  const tracked = memoryPid !== undefined;
+  const finalized = await waitFor(
+    async () => !(await isRunStillRunning(runId)),
+    tracked ? FINALIZE_WAIT_MS : 0
+  );
+  if (!finalized) {
+    await finalizeRun(runId, pid, details.command_id, details.group_run_id ?? null, -1, "killed");
+  }
+  return { stopped: true, forced };
 }
 
-export async function stopByCommandId(commandId: number): Promise<boolean> {
+export async function stopByCommandId(commandId: number): Promise<StopResult> {
   const runId = await getRunningRunIdByCommandId(commandId);
-  if (runId !== null) return stopRun(runId);
-  return false;
+  if (runId === null) return { stopped: false, forced: false };
+  return stopRun(runId);
 }
 
-export async function stopByCommandIdAndWait(
-  commandId: number,
-  timeoutMs: number = 10_000
-): Promise<void> {
-  const runId = await getRunIdForCommand(commandId);
-  if (runId === null) return;
-
-  await stopRun(runId);
-
-  return new Promise<void>((resolve) => {
-    const pollIntervalMs = 50;
-    const deadline = timeoutMs > 0 ? Date.now() + timeoutMs : null;
-
-    const check = async () => {
-      if (!(await isRunStillRunning(runId))) {
-        resolve();
-        return;
-      }
-      if (deadline !== null && Date.now() >= deadline) {
-        const pid = runIdToPid.get(runId);
-        if (pid !== undefined) {
-          killProcessGroup(pid, "SIGKILL");
-        }
-        const details = await getRunDetailsById(runId);
-        if (details && details.status === "running") {
-          await finalizeRun(
-            runId,
-            pid ?? details.pid ?? 0,
-            details.command_id,
-            details.group_run_id ?? null,
-            -1,
-            "killed"
-          );
-        }
-        resolve();
-        return;
-      }
-      setTimeout(() => {
-        void check();
-      }, pollIntervalMs);
-    };
-    void check();
-  });
+/** Stop the command's running run (if any) and resolve once it is finalized. */
+export async function stopByCommandIdAndWait(commandId: number): Promise<StopResult> {
+  return stopByCommandId(commandId);
 }

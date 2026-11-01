@@ -1,17 +1,14 @@
-export type { RunStateObserver, LogEventsObserver } from "./state";
+export type { RunStateObserver, LogEventsObserver, LiveLogChunk } from "./state";
 export {
-  getProcessManagerState,
   subscribeRunStateChange,
   subscribeLogEvents,
-  setRunStateChangeCallback,
-  setLogHooks,
   getRunIdForCommand,
   getRunningRunIds,
   isRunLive,
 } from "./state";
 export { spawnCommand } from "./spawn";
-export { stopRun, stopByCommandId, stopByCommandIdAndWait } from "./stop";
+export { stopRun, stopByCommandId, stopByCommandIdAndWait, type StopResult } from "./stop";
 export { killGroupRun } from "./kill";
-export { registerSSEWriter } from "./log";
+export { flushAllLogs } from "./log";
 export { reconcileStaleRuns } from "./reconcile";
 export { processManager } from "./facade";

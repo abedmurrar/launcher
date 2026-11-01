@@ -7,4 +7,3 @@ export interface RunRecord {
   groupRunId: number | null;
 }
 
-export type SSEWriter = (data: string, streamType: "stdout" | "stderr") => void;
