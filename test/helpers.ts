@@ -8,6 +8,7 @@ import { killProcessGroup } from "@/lib/process-manager/kill";
 import { isProcessGroupAlive, waitFor as pollUntil } from "@/lib/process-manager/process-utils";
 import { init } from "@/lib/ws-broadcast";
 import { handleSocketConnection } from "@/server/ws-handler";
+import { applySocketAuth } from "@/server/auth";
 
 /** Poll until `check` is true (default timeout 10s). */
 export function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 10_000): Promise<boolean> {
@@ -40,17 +41,18 @@ export async function killAllTracked(): Promise<void> {
 export interface TestSocketServer {
   url: string;
   io: SocketIOServer;
-  connect: () => Promise<ClientSocket>;
+  connect: (opts?: { cookie?: string }) => Promise<ClientSocket>;
   close: () => Promise<void>;
 }
 
 /** Socket.IO server wired exactly like server/index.ts, but without Next. */
-export async function startSocketServer(): Promise<TestSocketServer> {
+export async function startSocketServer(opts: { token?: string } = {}): Promise<TestSocketServer> {
   const server = http.createServer((_req, res) => {
     res.statusCode = 404;
     res.end();
   });
   const io = new SocketIOServer(server, { path: "/ws", addTrailingSlash: false });
+  applySocketAuth(io, opts.token ?? null);
   init(io);
   io.on("connection", handleSocketConnection);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -60,8 +62,14 @@ export async function startSocketServer(): Promise<TestSocketServer> {
   return {
     url,
     io,
-    connect: async () => {
-      const socket = ioClient(url, { path: "/ws", transports: ["websocket"], reconnectionDelay: 100 });
+    connect: async (connectOpts = {}) => {
+      const socket = ioClient(url, {
+        path: "/ws",
+        transports: ["websocket"],
+        reconnectionDelay: 100,
+        reconnection: false,
+        extraHeaders: connectOpts.cookie ? { Cookie: connectOpts.cookie } : undefined,
+      });
       clients.push(socket);
       await new Promise<void>((resolve, reject) => {
         socket.once("connect", () => resolve());

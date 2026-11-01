@@ -4,10 +4,19 @@ import { useState } from "react";
 import { CommandList } from "@/components/CommandList";
 import { GroupList } from "@/components/GroupList";
 import { StopAllButton } from "@/components/StopAllButton";
+import { WsProvider } from "@/context/ws";
 
 type Tab = "commands" | "groups";
 
 export default function Home() {
+  return (
+    <WsProvider>
+      <HomeContent />
+    </WsProvider>
+  );
+}
+
+function HomeContent() {
   const [tab, setTab] = useState<Tab>("commands");
 
   return (

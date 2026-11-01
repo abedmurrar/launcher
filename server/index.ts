@@ -6,6 +6,8 @@ import { reconcileStaleRuns, flushAllLogs, stopAllTailing } from "../lib/process
 import { init } from "../lib/ws-broadcast";
 import { startLogRetention } from "../lib/log-retention";
 import { handleSocketConnection } from "./ws-handler";
+import { getAuthToken, unsafeBindingError } from "../lib/auth";
+import { applySocketAuth, rejectUnauthorized } from "./auth";
 import { dev, host, port, SOCKET_IO_PATH } from "./config";
 
 // Log but don't exit: crashing would orphan every managed process' log stream.
@@ -20,11 +22,19 @@ const app = next({ dev, hostname: host, port });
 const handle = app.getRequestHandler();
 
 async function main(): Promise<void> {
+  const token = getAuthToken();
+  const bindingError = unsafeBindingError(host, token, process.env.LAUNCHER_ALLOW_INSECURE === "1");
+  if (bindingError) {
+    console.error(`[launcher] ${bindingError}`);
+    process.exit(1);
+  }
+
   await app.prepare();
   await getDb();
   await reconcileStaleRuns();
 
   const server = http.createServer((req, res) => {
+    if (rejectUnauthorized(req, res, token)) return;
     void handle(req, res);
   });
 
@@ -33,6 +43,7 @@ async function main(): Promise<void> {
     transports: ["polling", "websocket"],
     addTrailingSlash: false,
   });
+  applySocketAuth(io, token);
   init(io);
 
   io.on("connection", (socket) => {
@@ -74,9 +85,11 @@ async function main(): Promise<void> {
     console.log(
       `> Ready on http://${shown}:${port} (bound to ${host}; Socket.IO on ${SOCKET_IO_PATH})`
     );
-    if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
+    if (token) {
+      console.log("> Auth enabled (LAUNCHER_TOKEN): sign in at /login");
+    } else if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
       console.warn(
-        "> WARNING: listening on a non-loopback address. Anyone who can reach this port can run shell commands."
+        "> WARNING: listening on a non-loopback address WITHOUT auth (LAUNCHER_ALLOW_INSECURE=1). Anyone who can reach this port can run shell commands."
       );
     }
   });

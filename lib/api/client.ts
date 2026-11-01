@@ -25,7 +25,14 @@ apiClient.interceptors.request.use(
 );
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Auth enabled and session missing/expired: sign in, then come back.
+    if (response.status === 401 && typeof window !== "undefined" && window.location.pathname !== "/login") {
+      const next = window.location.pathname + window.location.search;
+      window.location.href = `/login?next=${encodeURIComponent(next)}`;
+    }
+    return response;
+  },
   (error) => {
     if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
       const msg = error.response?.data?.error ?? error.message;

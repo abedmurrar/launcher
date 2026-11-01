@@ -14,6 +14,13 @@ export interface SocketConnectionParams {
   onConnect: (socket: Socket) => void;
 }
 
+/** Auth is enabled and the session is missing/expired: go sign in, then come back. */
+export function redirectToLogin(): void {
+  if (typeof window === "undefined" || window.location.pathname === "/login") return;
+  const next = window.location.pathname + window.location.search;
+  window.location.href = `/login?next=${encodeURIComponent(next)}`;
+}
+
 const debug = (...args: unknown[]) => {
   if (process.env.NODE_ENV === "development") console.log("[socket.io]", ...args);
 };
@@ -62,8 +69,12 @@ export function useSocketConnection(params: SocketConnectionParams): void {
       onConnectRef.current(socket);
     });
 
-    socket.on("connect_error", () => {
-      debug("connect_error");
+    socket.on("connect_error", (err) => {
+      debug("connect_error", err?.message);
+      if (err?.message === "unauthorized") {
+        redirectToLogin();
+        return;
+      }
       setConnectionError(true);
     });
 
