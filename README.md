@@ -33,7 +33,8 @@ Tests live in `test/` and use a throwaway DB per file (`LAUNCHER_DATA_DIR`); the
 | Run (prod) | `npm start` | Production server; requires `npm run build` first. |
 
 - **Port:** Default is `9555`. Override with `PORT=1337 npm start` (or `npm run dev`).
-- **Bind address:** Default is `127.0.0.1` (local only). The app runs arbitrary shell commands without auth, so LAN access is an explicit opt-in: `HOST=0.0.0.0 npm start`.
+- **Bind address:** Default is `127.0.0.1` (local only). To use it from other devices, set a token as well: `HOST=0.0.0.0 LAUNCHER_TOKEN=<long random secret> npm start`. The server refuses to listen on a non-loopback address without `LAUNCHER_TOKEN` unless you set `LAUNCHER_ALLOW_INSECURE=1`.
+- **Auth (optional):** when `LAUNCHER_TOKEN` is set, every page, API route and the Socket.IO handshake requires a session. Sign in at `/login` with the token; the browser gets an HttpOnly, SameSite=Strict cookie (an HMAC of the token, valid 30 days). `POST /api/logout` clears it. Changing the token invalidates all sessions. Use HTTPS (e.g. a reverse proxy) if the network isn't trusted.
 - **Tuning (optional env vars):**
 
   | Variable | Default | Meaning |
@@ -277,7 +278,7 @@ All handlers that use the DB or `child_process` live under `app/api/` and use th
 
 ## Security and safety (local-only)
 
-- Intended for **local use only**. The server binds to `127.0.0.1` by default; `HOST=0.0.0.0` exposes it (no auth).
+- Intended for **local use**. The server binds to `127.0.0.1` by default. Exposing it (`HOST=0.0.0.0`) requires `LAUNCHER_TOKEN` (shared-token login) unless `LAUNCHER_ALLOW_INSECURE=1` is set.
 - Validate `cwd` to prevent escaping (e.g. resolve to real path and ensure it’s under an allowed base).
 - Sanitize or restrict `command` as needed; env vars from the DB are applied as-is.
 

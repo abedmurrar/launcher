@@ -4,7 +4,14 @@ Keep the launcher running in the background, start it on boot, and restart on fa
 
 **Default port:** `9555` (override with `PORT`).
 
-**Bind address:** `127.0.0.1` by default. To reach it from other machines set `HOST=0.0.0.0` (no authentication. Anyone who can reach the port can run shell commands).
+**Bind address:** `127.0.0.1` by default. To reach it from other machines set `HOST=0.0.0.0` **and** `LAUNCHER_TOKEN=<long random secret>` (sign in at `/login`). Without a token the server refuses to start on a non-loopback address unless `LAUNCHER_ALLOW_INSECURE=1`.
+
+With PM2:
+
+```bash
+HOST=0.0.0.0 LAUNCHER_TOKEN="$(openssl rand -hex 24)" pm2 restart launcher --update-env
+pm2 env 0 | grep LAUNCHER_TOKEN   # to see the token you set
+```
 
 **Data directory:** SQLite is created at `./data/launcher.db` relative to the project root. Always start the app with `WorkingDirectory` / `cwd` set to the project directory (e.g. `/path/to/launcher`).
 
@@ -175,4 +182,4 @@ journalctl --user -u launcher -f
 
 ## Security note
 
-This app is intended for **local use only**. It binds to `127.0.0.1` unless `HOST` is set. Do not set `HOST=0.0.0.0` on an untrusted network: there is no authentication.
+This app runs shell commands. It binds to `127.0.0.1` unless `HOST` is set; on any other address it requires `LAUNCHER_TOKEN`. The token login is a single shared secret over plain HTTP: on an untrusted network put it behind HTTPS (reverse proxy) or keep it on loopback.
