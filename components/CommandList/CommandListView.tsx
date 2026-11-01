@@ -101,9 +101,9 @@ function CommandListItemView({
   onCancelEdit: () => void;
   onUpdate: (data: CommandFormData) => Promise<void>;
   onDelete: () => void;
-  onRun: () => Promise<unknown>;
-  onStop: () => Promise<unknown>;
-  onRestart: () => Promise<unknown>;
+  onRun: () => Promise<boolean>;
+  onStop: () => Promise<boolean>;
+  onRestart: () => Promise<boolean>;
   onLogs: (runId: number) => void;
 }) {
   if (isEditing) {
