@@ -1,6 +1,6 @@
-import { listCommandsForList, getPidByRunId, getLastRunByCommandId } from "@/lib/db/queries";
-import { getRunIdForCommand } from "@/lib/process-manager";
+import { listCommandsForList } from "@/lib/db/queries";
 import { getGitBranch } from "@/lib/git-branch";
+import { parseEnv } from "@/lib/actions/helpers";
 
 export interface CommandListItem {
   id: number;
@@ -21,30 +21,23 @@ export interface CommandListItem {
 }
 
 export async function buildCommandsList(): Promise<CommandListItem[]> {
-  const commands = await listCommandsForList();
+  const rows = await listCommandsForList();
+  const branches = await Promise.all(rows.map((c) => (c.cwd ? getGitBranch(c.cwd) : null)));
 
-  return Promise.all(
-    commands.map(async (c) => {
-      const runId = await getRunIdForCommand(c.id);
-      const pid = runId != null ? (await getPidByRunId(runId)) ?? null : null;
-      const lastRun = await getLastRunByCommandId(c.id);
-      const git_branch = c.cwd ? getGitBranch(c.cwd) : null;
-      return {
-        id: c.id,
-        name: c.name,
-        command: c.command,
-        cwd: c.cwd,
-        env: typeof c.env === "string" ? (JSON.parse(c.env || "{}") as Record<string, string>) : c.env,
-        created_at: c.created_at,
-        updated_at: c.updated_at,
-        last_run_at: c.last_run_at,
-        last_exit_code: c.last_exit_code,
-        running: runId !== null,
-        run_id: runId ?? undefined,
-        last_run_id: lastRun?.id,
-        pid: pid ?? undefined,
-        git_branch: git_branch ?? undefined,
-      };
-    })
-  );
+  return rows.map((c, i) => ({
+    id: c.id,
+    name: c.name,
+    command: c.command,
+    cwd: c.cwd,
+    env: parseEnv(c.env),
+    created_at: c.created_at,
+    updated_at: c.updated_at,
+    last_run_at: c.last_run_at,
+    last_exit_code: c.last_exit_code,
+    running: c.run_id != null,
+    run_id: c.run_id ?? undefined,
+    last_run_id: c.last_run_id ?? undefined,
+    pid: c.run_pid ?? undefined,
+    git_branch: branches[i] ?? undefined,
+  }));
 }

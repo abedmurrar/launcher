@@ -1,4 +1,4 @@
-export { broadcastCommands, broadcastGroups, sendInitialDump } from "./lists";
-export { pushLogChunk, pushLogFinished } from "./log-stream";
-export { registerClient, unregisterClient, subscribeLogs, unsubscribeLogs } from "./lifecycle";
+export { broadcastCommands, broadcastGroups, scheduleListsBroadcast, sendInitialDump } from "./lists";
+export { pushLogBatch, pushLogFinished } from "./log-stream";
+export { subscribeLogs, unsubscribeLogs } from "./lifecycle";
 export { init } from "./init";

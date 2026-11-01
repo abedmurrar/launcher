@@ -4,11 +4,7 @@ export function send(socket: Socket, event: string, payload: unknown): void {
   if (!socket.connected) return;
   try {
     socket.emit(event, payload);
-  } catch {
-    // ignore
+  } catch (err) {
+    console.error(`[ws] emit ${event} failed:`, err);
   }
-}
-
-export function broadcast(clients: Set<Socket>, event: string, payload: unknown): void {
-  clients.forEach((socket) => send(socket, event, payload));
 }

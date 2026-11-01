@@ -1,7 +1,5 @@
-import type { Socket } from "socket.io";
 import type { ActionType, ActionPayload, ActionResult } from "./types";
-import { isActionType, COMMAND_ACTIONS_LIST } from "./types";
-import { sendResult } from "./reply";
+import { COMMAND_ACTIONS_LIST } from "./types";
 import { handleCommandAction } from "./command-actions";
 import { handleGroupAction } from "./group-actions";
 import { ActionResultFactory } from "@/lib/actions/result-factory";
@@ -17,23 +15,15 @@ export {
   isActionType,
 } from "./types";
 
-export async function handleAction(
-  socket: Socket,
-  type: ActionType,
-  requestId: string | undefined,
-  payload: ActionPayload
-): Promise<void> {
-  const reply = (result: ActionResult) => sendResult(socket, type, requestId, result);
-
+/** Execute an action and return its result (never throws). */
+export async function handleAction(type: ActionType, payload: ActionPayload): Promise<ActionResult> {
   try {
-    if ((COMMAND_ACTIONS_LIST as readonly string[]).includes(type)) {
-      await handleCommandAction(socket, type, requestId, payload, reply);
-    } else {
-      await handleGroupAction(socket, type, requestId, payload, reply);
-    }
+    const result = (COMMAND_ACTIONS_LIST as readonly string[]).includes(type)
+      ? await handleCommandAction(type, payload)
+      : await handleGroupAction(type, payload);
+    return result ?? ActionResultFactory.error("Unknown action", 400);
   } catch (err) {
-    reply(
-      ActionResultFactory.error(err instanceof Error ? err.message : "Unknown error")
-    );
+    console.error(`[ws] action ${type} failed:`, err);
+    return ActionResultFactory.error(err instanceof Error ? err.message : "Unknown error", 500);
   }
 }

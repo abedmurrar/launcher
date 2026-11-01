@@ -1,50 +1,35 @@
 import type { Socket } from "socket.io";
-import {
-  sendInitialDump,
-  subscribeLogs,
-  unsubscribeLogs,
-} from "../lib/ws-broadcast";
+import { sendInitialDump, subscribeLogs, unsubscribeLogs } from "../lib/ws-broadcast";
 import { handleAction, isActionType } from "../lib/ws-action-handlers";
+import type { ActionResult } from "../lib/ws-action-handlers/types";
 
-export interface IncomingMessage {
-  type: string;
-  requestId?: string;
-  runId?: number;
-  commandId?: number;
-  groupId?: number;
-  id?: number;
-  data?: unknown;
-  name?: string;
-  commandIds?: number[];
-}
+type Ack = (result: ActionResult) => void;
 
 export function handleSocketConnection(socket: Socket): void {
   socket.on("initial", () => {
-    void sendInitialDump(socket).catch((err) => console.error("[ws] sendInitialDump failed:", err));
+    void sendInitialDump(socket);
   });
 
   socket.on("subscribe_logs", (runId: unknown) => {
-    if (typeof runId === "number") {
+    if (typeof runId === "number" && Number.isInteger(runId)) {
       subscribeLogs(socket, runId);
     }
   });
 
   socket.on("unsubscribe_logs", (runId: unknown) => {
-    if (typeof runId === "number") {
+    if (typeof runId === "number" && Number.isInteger(runId)) {
       unsubscribeLogs(socket, runId);
     }
   });
 
-  socket.on("action", (payload: unknown) => {
-    const msg = payload as IncomingMessage;
-    if (!msg || typeof msg.type !== "string") return;
-    if (isActionType(msg.type)) {
-      handleAction(
-        socket,
-        msg.type,
-        msg.requestId,
-        msg as unknown as Record<string, unknown>
-      );
+  /** Actions are acknowledged via the Socket.IO ack callback (no request-id bookkeeping). */
+  socket.on("action", (payload: unknown, ack?: unknown) => {
+    const reply: Ack = typeof ack === "function" ? (ack as Ack) : () => {};
+    const msg = payload as { type?: unknown } | null;
+    if (!msg || typeof msg.type !== "string" || !isActionType(msg.type)) {
+      reply({ success: false, error: "Unknown action", code: 400 });
+      return;
     }
+    void handleAction(msg.type, msg as Record<string, unknown>).then(reply);
   });
 }

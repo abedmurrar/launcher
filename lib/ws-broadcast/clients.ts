@@ -1,24 +1,22 @@
-import type { Socket } from "socket.io";
+import type { Server, Socket } from "socket.io";
+import { globalSingleton } from "@/lib/global-singleton";
 
 /**
- * Singleton: shared Socket.IO client set and log subscribers per process.
+ * Shared Socket.IO server handle (set by the custom server, read by route handlers too).
+ * Log subscriptions use Socket.IO rooms named `run:<id>`.
  */
-class WsBroadcastSingleton {
-  private static instance: WsBroadcastSingleton | null = null;
+const holder = globalSingleton("ws-io", () => ({ io: null as Server | null }));
 
-  readonly clients = new Set<Socket>();
-  readonly logSubscribers = new Map<number, Set<Socket>>();
-
-  private constructor() {}
-
-  static getInstance(): WsBroadcastSingleton {
-    if (WsBroadcastSingleton.instance === null) {
-      WsBroadcastSingleton.instance = new WsBroadcastSingleton();
-    }
-    return WsBroadcastSingleton.instance;
-  }
+export function setIo(io: Server): void {
+  holder.io = io;
 }
 
-const state = WsBroadcastSingleton.getInstance();
-export const clients = state.clients;
-export const logSubscribers = state.logSubscribers;
+export function getIo(): Server | null {
+  return holder.io;
+}
+
+export function runRoom(runId: number): string {
+  return `run:${runId}`;
+}
+
+export type { Socket };

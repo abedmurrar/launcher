@@ -1,33 +1,32 @@
 import type { Socket } from "socket.io";
-import { runExists, getLogChunksByRunId } from "@/lib/db/queries";
-import { logSubscribers } from "./clients";
+import { getRunDetailsById, getLogTailByRunId } from "@/lib/db/queries";
+import type { LiveLogChunk } from "@/lib/process-manager/state";
+import { config } from "@/lib/config";
+import { getIo, runRoom } from "./clients";
 import { send } from "./send";
 
-async function getLogChunksForRun(runId: number): Promise<ReturnType<typeof getLogChunksByRunId>> {
-  if (!(await runExists(runId))) return [];
-  return getLogChunksByRunId(runId);
-}
-
+/** Send the tail of a run's persisted log (bounded by `logHistoryMaxBytes`). */
 export async function sendLogHistoryToClient(socket: Socket, runId: number): Promise<void> {
-  const chunks = await getLogChunksForRun(runId);
-  if (chunks.length > 0) {
-    send(socket, "log_history", { runId, chunks });
-  }
+  const run = await getRunDetailsById(runId);
+  if (!run) return;
+  const tail = await getLogTailByRunId(runId, config.logHistoryMaxBytes);
+  send(socket, "log_history", {
+    runId,
+    live: run.status === "running",
+    chunks: tail.chunks.map((c) => ({ stream_type: c.stream_type, content: c.content })),
+    truncated: tail.truncated,
+    lastId: tail.lastId,
+  });
 }
 
-export function pushLogChunk(
-  runId: number,
-  content: string,
-  streamType: "stdout" | "stderr"
-): void {
-  const payload = { runId, streamType, data: content };
-  const subs = logSubscribers.get(runId);
-  if (subs) subs.forEach((socket) => send(socket, "log", payload));
+export function pushLogBatch(runId: number, chunks: LiveLogChunk[], lastId: number | undefined): void {
+  getIo()?.to(runRoom(runId)).emit("log_batch", { runId, chunks, lastId });
 }
 
 export function pushLogFinished(runId: number): void {
-  const payload = { runId };
-  const subs = logSubscribers.get(runId);
-  if (subs) subs.forEach((socket) => send(socket, "log_finished", payload));
-  logSubscribers.delete(runId);
+  const io = getIo();
+  if (!io) return;
+  const room = runRoom(runId);
+  io.to(room).emit("log_finished", { runId });
+  io.in(room).socketsLeave(room);
 }
