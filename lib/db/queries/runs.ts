@@ -44,7 +44,9 @@ export async function insertRunWithGroup(commandId: number, groupRunId: number) 
 
 export async function updateRunStatusFailed(runId: number): Promise<void> {
   const db = await getDb();
-  await db("runs").where("id", runId).update({ status: "failed" });
+  await db("runs")
+    .where("id", runId)
+    .update({ status: "failed", finished_at: db.raw("datetime('now')"), exit_code: -1 });
 }
 
 export async function updateRunPid(pid: number, runId: number): Promise<void> {

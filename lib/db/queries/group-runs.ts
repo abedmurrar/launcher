@@ -64,3 +64,37 @@ export async function updateGroupRunKilled(id: number): Promise<void> {
     .where("id", id)
     .update({ finished_at: db.raw("datetime('now')"), status: "killed" });
 }
+
+/** Set the status of a group run that is still running (no-op once it has finished). */
+export async function updateGroupRunStatus(id: number, status: "success" | "failed" | "killed"): Promise<void> {
+  const db = await getDb();
+  await db("group_runs")
+    .where({ id, status: "running" })
+    .update({ finished_at: db.raw("datetime('now')"), status });
+}
+
+export interface LastGroupRunRow {
+  id: number;
+  group_id: number;
+  started_at: string;
+  finished_at: string | null;
+  status: string;
+}
+
+/** The most recent group run of every group (one query). */
+export async function listLastGroupRuns(): Promise<LastGroupRunRow[]> {
+  const db = await getDb();
+  return (await db.raw(
+    `SELECT id, group_id, started_at, finished_at, status FROM (
+       SELECT id, group_id, started_at, finished_at, status,
+              ROW_NUMBER() OVER (PARTITION BY group_id ORDER BY started_at DESC, id DESC) AS rn
+       FROM group_runs
+     ) WHERE rn = 1`
+  )) as LastGroupRunRow[];
+}
+
+/** Running group run id per group. */
+export async function listRunningGroupRuns(): Promise<{ id: number; group_id: number }[]> {
+  const db = await getDb();
+  return db("group_runs").select("id", "group_id").where("status", "running");
+}
