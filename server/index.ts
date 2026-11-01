@@ -1,3 +1,5 @@
+// Must be the first import: snapshots the environment managed commands inherit (see child-env.ts).
+import "./capture-env";
 import http from "http";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
