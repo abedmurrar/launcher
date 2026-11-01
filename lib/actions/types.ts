@@ -18,6 +18,7 @@ export const createCommandSchema = z.object({
   command: z.string().min(1),
   cwd: z.string().default(""),
   env: z.record(z.string(), z.string()).default({}),
+  autoRestart: z.boolean().default(false),
 });
 
 export const updateCommandSchema = z.object({
@@ -25,6 +26,7 @@ export const updateCommandSchema = z.object({
   command: z.string().min(1).optional(),
   cwd: z.string().optional(),
   env: z.record(z.string(), z.string()).optional(),
+  autoRestart: z.boolean().optional(),
 });
 
 export const createGroupSchema = z.object({ name: z.string().min(1) });

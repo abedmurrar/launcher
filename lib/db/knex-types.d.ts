@@ -8,7 +8,8 @@ declare module "knex/types/tables" {
   interface Tables {
     commands: Knex.CompositeTableType<
       CommandRow,
-      Pick<CommandRow, "name" | "command" | "cwd" | "env"> & Partial<Pick<CommandRow, "created_at" | "updated_at" | "last_run_at" | "last_exit_code">>,
+      Pick<CommandRow, "name" | "command" | "cwd" | "env"> &
+        Partial<Pick<CommandRow, "created_at" | "updated_at" | "last_run_at" | "last_exit_code" | "auto_restart">>,
       UpdatePayload<Omit<CommandRow, "id">>
     >;
     groups: Knex.CompositeTableType<

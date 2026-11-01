@@ -3,6 +3,8 @@ export interface CommandFormData {
   command: string;
   cwd: string;
   env: Record<string, string>;
+  /** Restart automatically after a reboot / launcher crash */
+  autoRestart: boolean;
 }
 
 export interface CommandFormProps {
@@ -16,4 +18,5 @@ export const emptyForm: CommandFormData = {
   command: "",
   cwd: "",
   env: {},
+  autoRestart: false,
 };

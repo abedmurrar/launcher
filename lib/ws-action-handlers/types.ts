@@ -7,6 +7,8 @@ export const CommandAction = {
   UpdateCommand: "update_command",
   DeleteCommand: "delete_command",
   StopAll: "stop_all",
+  Restore: "restore",
+  DismissRestore: "dismiss_restore",
 } as const;
 
 export type CommandActionType = (typeof CommandAction)[keyof typeof CommandAction];

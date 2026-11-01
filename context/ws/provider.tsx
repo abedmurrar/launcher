@@ -16,6 +16,7 @@ import type {
   LogCallbacks,
   ActionResult,
   IncomingMessage,
+  RestoreOffer,
   WsContextValue,
 } from "./types";
 import { createHttpActionSender, createSocketIoActionSender } from "./adapters";
@@ -34,6 +35,10 @@ export function WsProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
+  const [restoreOffers, setRestoreOffers] = useState<RestoreOffer[]>([]);
+  const [instanceId, setInstanceId] = useState<string | null>(null);
+  const [lastSyncAt, setLastSyncAt] = useState(0);
+  const markSynced = useCallback(() => setLastSyncAt(Date.now()), []);
 
   const socketRef = useRef<Socket | null>(null);
   const logSubscribersRef = useRef<Map<number, LogCallbacks>>(new Map());
@@ -42,6 +47,7 @@ export function WsProvider({ children }: { children: ReactNode }) {
     (commandsList: CommandListItem[], groupsList: GroupListItem[]) => {
       setCommands(commandsList);
       setGroups(groupsList);
+      setLastSyncAt(Date.now());
     },
     []
   );
@@ -84,8 +90,11 @@ export function WsProvider({ children }: { children: ReactNode }) {
       setInitialLoadDone,
       setConnectionError,
       getLogSubscribers: () => logSubscribersRef.current,
+      setRestoreOffers,
+      setInstanceId,
+      markSynced,
     });
-  }, []);
+  }, [markSynced]);
 
   useSocketConnection({
     socketRef,
@@ -95,17 +104,25 @@ export function WsProvider({ children }: { children: ReactNode }) {
     onConnect,
   });
 
+  const setCommandsSynced = useCallback(
+    (list: CommandListItem[]) => {
+      setCommands(list);
+      markSynced();
+    },
+    [markSynced]
+  );
+
   useInitialLoadFallback({
     initialLoadDone,
     connectionError,
-    setCommands,
+    setCommands: setCommandsSynced,
     setGroups,
     setInitialLoadDone,
   });
 
   usePollingWhenDisconnected({
     ready,
-    setCommands,
+    setCommands: setCommandsSynced,
     setGroups,
     setInitialLoadDone,
   });
@@ -117,11 +134,26 @@ export function WsProvider({ children }: { children: ReactNode }) {
       ready,
       initialLoadDone,
       connectionError,
+      restoreOffers,
+      instanceId,
+      lastSyncAt,
       sendAction,
       subscribeToLogs,
       unsubscribeFromLogs,
     }),
-    [commands, groups, ready, initialLoadDone, connectionError, sendAction, subscribeToLogs, unsubscribeFromLogs]
+    [
+      commands,
+      groups,
+      ready,
+      initialLoadDone,
+      connectionError,
+      restoreOffers,
+      instanceId,
+      lastSyncAt,
+      sendAction,
+      subscribeToLogs,
+      unsubscribeFromLogs,
+    ]
   );
 
   return <WsContext.Provider value={contextValue}>{children}</WsContext.Provider>;

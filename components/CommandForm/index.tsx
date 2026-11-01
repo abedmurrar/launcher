@@ -15,6 +15,7 @@ export function CommandForm({ initial, onSubmit, onCancel }: CommandFormProps) {
   const [name, setName] = useState(initial?.name ?? "");
   const [command, setCommand] = useState(initial?.command ?? "");
   const [cwd, setCwd] = useState(initial?.cwd ?? "");
+  const [autoRestart, setAutoRestart] = useState(initial?.autoRestart ?? false);
   const [envEntries, setEnvEntries] = useState<[string, string][]>(envToEntries(initial?.env ?? {}));
   const [submitting, setSubmitting] = useState(false);
 
@@ -39,6 +40,7 @@ export function CommandForm({ initial, onSubmit, onCancel }: CommandFormProps) {
         command: command.trim(),
         cwd: cwd.trim(),
         env: entriesToEnv(envEntries),
+        autoRestart,
       });
     } finally {
       setSubmitting(false);
@@ -79,6 +81,20 @@ export function CommandForm({ initial, onSubmit, onCancel }: CommandFormProps) {
           placeholder="/path/to/project (optional)"
         />
       </div>
+      <label className="flex items-start gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+        <input
+          type="checkbox"
+          checked={autoRestart}
+          onChange={(e) => setAutoRestart(e.target.checked)}
+          className="mt-0.5 accent-emerald-600"
+        />
+        <span>
+          Restart automatically after a reboot or launcher crash
+          <span className="block text-xs text-zinc-500">
+            If it was running when the machine restarted or the launcher went down, start it again on launch.
+          </span>
+        </span>
+      </label>
       <EnvFields
         entries={envEntries}
         onAdd={addEnv}

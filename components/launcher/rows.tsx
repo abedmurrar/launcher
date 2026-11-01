@@ -21,13 +21,16 @@ function LastRun({
   status,
   reason,
   running,
+  stale,
 }: {
   at: string | null;
   exitCode?: number | null;
   status?: string | null;
   reason?: string | null;
   running: boolean;
+  stale?: boolean;
 }) {
+  if (running && stale) return <span className="text-zinc-500">last known: running</span>;
   if (running) return <span className="text-emerald-600 dark:text-emerald-400">running</span>;
   const date = parseDbDate(at);
   if (!date) return <span className="text-zinc-400">never run</span>;
@@ -43,6 +46,7 @@ function LastRun({
 export function CommandRow({
   command: c,
   selected,
+  stale = false,
   onSelect,
   onRun,
   onStop,
@@ -50,12 +54,14 @@ export function CommandRow({
 }: {
   command: CommandListItem;
   selected: boolean;
+  /** Launcher unreachable: show the last known state, disable actions. */
+  stale?: boolean;
   onSelect: () => void;
   onRun: () => Promise<boolean>;
   onStop: () => Promise<boolean>;
   onRestart: () => Promise<boolean>;
 }) {
-  const state = runStateOf(c.running, c.last_run_status);
+  const state = runStateOf(c.running, c.last_run_status, stale);
   return (
     <div
       role="button"
@@ -68,7 +74,17 @@ export function CommandRow({
     >
       <StatusDot state={state} />
       <div className="min-w-0">
-        <div className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{c.name}</div>
+        <div className="flex items-center gap-1.5 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          <span className="truncate">{c.name}</span>
+          {c.auto_restart && (
+            <span
+              title="Restarts automatically after a reboot or launcher crash"
+              className="shrink-0 rounded bg-sky-500/10 px-1 text-[10px] font-medium uppercase tracking-wide text-sky-700 dark:text-sky-300"
+            >
+              auto
+            </span>
+          )}
+        </div>
         <div className="truncate font-mono text-xs text-zinc-500" title={c.command}>
           {c.command}
         </div>
@@ -90,9 +106,17 @@ export function CommandRow({
           status={c.last_run_status}
           reason={c.last_end_reason}
           running={c.running}
+          stale={stale}
         />
       </div>
-      <RunControls running={c.running} runId={c.run_id} onRun={onRun} onStop={onStop} onRestart={onRestart} />
+      <RunControls
+        running={c.running}
+        runId={c.run_id}
+        disabled={stale}
+        onRun={onRun}
+        onStop={onStop}
+        onRestart={onRestart}
+      />
     </div>
   );
 }
@@ -101,6 +125,7 @@ export function GroupRow({
   group: g,
   memberNames,
   selected,
+  stale = false,
   pending,
   onSelect,
   onRun,
@@ -110,13 +135,14 @@ export function GroupRow({
   group: GroupListItem;
   memberNames: string[];
   selected: boolean;
+  stale?: boolean;
   pending: GroupRunAction | null;
   onSelect: () => void;
   onRun: () => Promise<void>;
   onStop: () => Promise<void>;
   onRestart: () => Promise<void>;
 }) {
-  const state = runStateOf(g.running, g.last_run?.status);
+  const state = runStateOf(g.running, g.last_run?.status, stale);
   return (
     <div
       role="button"
@@ -138,13 +164,13 @@ export function GroupRow({
         </div>
       </div>
       <div className="hidden sm:block text-xs text-zinc-500 tabular-nums">
-        <LastRun at={g.last_run?.started_at ?? null} status={g.last_run?.status} running={g.running} />
+        <LastRun at={g.last_run?.started_at ?? null} status={g.last_run?.status} running={g.running} stale={stale} />
       </div>
       <RunControls
         running={g.running}
         runId={g.running_group_run_id}
         pending={pending}
-        disabled={g.command_ids.length === 0}
+        disabled={stale || g.command_ids.length === 0}
         onRun={onRun}
         onStop={onStop}
         onRestart={onRestart}

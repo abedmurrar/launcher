@@ -8,7 +8,7 @@ import { CommandAction } from "@/lib/ws-action-handlers/types";
 
 /** Header button that stops every running group and command. Hidden when nothing runs. */
 export function StopAllButton() {
-  const { commands, groups, sendAction } = useWs();
+  const { commands, groups, sendAction, ready } = useWs();
   const { toast, confirm } = useToast();
   const [busy, setBusy] = useState(false);
 
@@ -39,7 +39,8 @@ export function StopAllButton() {
     <button
       type="button"
       onClick={onClick}
-      disabled={busy}
+      disabled={busy || !ready}
+      title={ready ? undefined : "The launcher is offline"}
       className="inline-flex h-8 items-center gap-1.5 rounded-md bg-red-600 px-3 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
     >
       <OctagonX size={16} />

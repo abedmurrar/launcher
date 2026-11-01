@@ -68,6 +68,7 @@ function serializeCommand(row: NonNullable<Awaited<ReturnType<typeof getCommandB
     updated_at: row.updated_at,
     last_run_at: row.last_run_at,
     last_exit_code: row.last_exit_code,
+    auto_restart: Boolean(row.auto_restart),
   };
 }
 
@@ -127,8 +128,8 @@ export async function createCommand(
     return ActionResultFactory.error(formatValidationError(parsed.error), 400);
   }
 
-  const { name, command, cwd, env } = parsed.data;
-  const id = await insertCommand(name, command, cwd, JSON.stringify(env));
+  const { name, command, cwd, env, autoRestart } = parsed.data;
+  const id = await insertCommand(name, command, cwd, JSON.stringify(env), autoRestart);
   const row = (await getCommandById(id))!;
 
   await broadcastCommands();
@@ -152,12 +153,13 @@ export async function updateCommand(
       return ActionResultFactory.error("Cannot edit command while it is running", 409);
     }
 
-    const { name, command, cwd, env } = parsed.data;
+    const { name, command, cwd, env, autoRestart } = parsed.data;
     await updateCommandFields(id, {
       name,
       command,
       cwd,
       env: env !== undefined ? JSON.stringify(env) : undefined,
+      auto_restart: autoRestart !== undefined ? (autoRestart ? 1 : 0) : undefined,
     });
 
     await broadcastCommands();

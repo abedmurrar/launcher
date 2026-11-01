@@ -5,6 +5,7 @@ export type {
   LogCallbacks,
   LiveLogChunk,
   LogHistoryMeta,
+  RestoreOffer,
   ActionResult,
   WsContextValue,
 } from "./types";

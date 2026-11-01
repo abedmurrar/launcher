@@ -8,6 +8,7 @@ import { startSupervisor, stopSupervisor, flushAllLogs, stopAllTailing } from ".
 import { acquireInstanceLock, releaseInstanceLock, InstanceLockError } from "../lib/instance-lock";
 import { init } from "../lib/ws-broadcast";
 import { startLogRetention } from "../lib/log-retention";
+import { autoRestartAfterStartup } from "../lib/actions/restore";
 import { handleSocketConnection } from "./ws-handler";
 import { getAuthToken, unsafeBindingError } from "../lib/auth";
 import { applySocketAuth, rejectUnauthorized } from "./auth";
@@ -47,6 +48,10 @@ async function main(): Promise<void> {
   // Reconcile runs from before this start (adopt live ones, end the rest with a reason), then
   // keep supervising so the DB never drifts from reality.
   await startSupervisor();
+  // Commands with auto-restart that were running before a reboot / crash come back now.
+  const auto = await autoRestartAfterStartup();
+  if (auto.restarted.length) console.log(`[launcher] auto-restarted: ${auto.restarted.join(", ")}`);
+  if (auto.skipped.length) console.warn(`[launcher] not auto-restarted (crash-looping or failed): ${auto.skipped.join(", ")}`);
 
   const server = http.createServer((req, res) => {
     if (rejectUnauthorized(req, res, token)) return;

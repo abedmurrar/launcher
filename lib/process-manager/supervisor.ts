@@ -4,6 +4,8 @@ import {
   countRunningRunsByGroupRunId,
   updateGroupRunKilled,
   updateRunProcess,
+  addRestoreOffer,
+  getGroupIdByGroupRunId,
   type RunningRunRow,
 } from "@/lib/db/queries";
 import { globalSingleton } from "@/lib/global-singleton";
@@ -66,8 +68,20 @@ function adopt(run: RunningRunRow, pid: number): void {
   }
 }
 
+/** Offer what was running before a reboot / launcher crash for one-click restore. */
+async function offerRestore(run: RunningRunRow, reason: EndReason): Promise<void> {
+  if (reason !== "reboot" && reason !== "launcher_down") return;
+  try {
+    const groupId = run.group_run_id != null ? await getGroupIdByGroupRunId(run.group_run_id) : null;
+    await addRestoreOffer(groupId != null ? { groupId } : { commandId: run.command_id }, reason);
+  } catch (err) {
+    console.error("[supervisor] failed to record restore offer:", err);
+  }
+}
+
 /** End a run whose main process is gone: stop leftovers, ingest remaining output, finalize. */
 async function endRun(run: RunningRunRow, reason: EndReason): Promise<void> {
+  await offerRestore(run, reason);
   // Leftover descendants (identified by the run marker only: the leader's pid may be reused).
   if (reason !== "reboot") await terminateRun(run.id, null);
   if (runFilesExist(run.id) && !isTailing(run.id)) {
