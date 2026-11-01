@@ -1,129 +1,93 @@
 import type { RunRecord } from "./types";
 import { getRunningRunIdByCommandId } from "@/lib/db/queries";
+import { globalSingleton } from "@/lib/global-singleton";
 
 /** Observer: notified when run state (e.g. start/stop) changes. */
 export type RunStateObserver = () => void;
 
-/** Observer: notified on log chunk and when a run's log stream finishes. */
+export interface LiveLogChunk {
+  streamType: "stdout" | "stderr";
+  data: string;
+}
+
+/**
+ * Observer: notified with batched log output and when a run's log stream finishes.
+ * `lastId` is the DB id of the last persisted chunk in the batch (undefined if the write failed),
+ * letting clients de-duplicate against history.
+ */
 export interface LogEventsObserver {
-  onChunk: (runId: number, content: string, streamType: "stdout" | "stderr") => void;
+  onBatch: (runId: number, chunks: LiveLogChunk[], lastId: number | undefined) => void;
   onFinished: (runId: number) => void;
 }
 
 /**
- * Singleton: single shared process manager state per process
- * (PID maps, runId mapping, group run tracking, and observers).
- * State and behavior are static so there is one shared instance.
+ * Single shared process manager state per Node process (PID maps, group run tracking,
+ * observers). Stored on globalThis so the custom server and Next route handlers share it.
  */
-class ProcessManagerStateSingleton {
-  static readonly pidMap = new Map<number, RunRecord>();
-  static readonly runIdToPid = new Map<number, number>();
-  static readonly groupRunIdToPids = new Map<number, number[]>();
+const state = globalSingleton("process-manager-state", () => ({
+  pidMap: new Map<number, RunRecord>(),
+  runIdToPid: new Map<number, number>(),
+  groupRunIdToPids: new Map<number, number[]>(),
+  runStateObservers: new Set<RunStateObserver>(),
+  logEventsObservers: new Set<LogEventsObserver>(),
+}));
 
-  private static readonly runStateObservers = new Set<RunStateObserver>();
-  private static readonly logEventsObservers = new Set<LogEventsObserver>();
+export const pidMap = state.pidMap;
+export const runIdToPid = state.runIdToPid;
+export const groupRunIdToPids = state.groupRunIdToPids;
 
-  private constructor() {}
-
-  /** Observer pattern: subscribe to run state changes. Returns unsubscribe. */
-  static subscribeRunStateChange(observer: RunStateObserver): () => void {
-    ProcessManagerStateSingleton.runStateObservers.add(observer);
-    return () => {
-      ProcessManagerStateSingleton.runStateObservers.delete(observer);
-    };
-  }
-
-  /** Observer pattern: subscribe to log chunk/finished events. Returns unsubscribe. */
-  static subscribeLogEvents(observer: LogEventsObserver): () => void {
-    ProcessManagerStateSingleton.logEventsObservers.add(observer);
-    return () => {
-      ProcessManagerStateSingleton.logEventsObservers.delete(observer);
-    };
-  }
-
-  /** Backward compat: single callback (replaces previous). */
-  static setRunStateChangeCallback(callback: () => void): void {
-    ProcessManagerStateSingleton.runStateObservers.clear();
-    ProcessManagerStateSingleton.runStateObservers.add(callback);
-  }
-
-  /** Backward compat: single log hooks (replaces previous). */
-  static setLogHooks(hooks: LogEventsObserver): void {
-    ProcessManagerStateSingleton.logEventsObservers.clear();
-    ProcessManagerStateSingleton.logEventsObservers.add(hooks);
-  }
-
-  static notifyRunStateChange(): void {
-    ProcessManagerStateSingleton.runStateObservers.forEach((observer) => observer());
-  }
-
-  static emitLogToHooks(runId: number, content: string, streamType: "stdout" | "stderr"): void {
-    ProcessManagerStateSingleton.logEventsObservers.forEach((observer) =>
-      observer.onChunk(runId, content, streamType)
-    );
-  }
-
-  static notifyLogFinished(runId: number): void {
-    ProcessManagerStateSingleton.logEventsObservers.forEach((observer) => observer.onFinished(runId));
-  }
-
-  static async getRunIdForCommand(commandId: number): Promise<number | null> {
-    return getRunningRunIdByCommandId(commandId);
-  }
-
-  static getRunningRunIds(): number[] {
-    return Array.from(ProcessManagerStateSingleton.runIdToPid.keys());
-  }
-
-  static isRunLive(runId: number): boolean {
-    return ProcessManagerStateSingleton.runIdToPid.has(runId);
+function safeCall(fn: () => void, label: string): void {
+  try {
+    fn();
+  } catch (err) {
+    console.error(`[process-manager] ${label} observer failed:`, err);
   }
 }
 
-export const pidMap = ProcessManagerStateSingleton.pidMap;
-export const runIdToPid = ProcessManagerStateSingleton.runIdToPid;
-export const groupRunIdToPids = ProcessManagerStateSingleton.groupRunIdToPids;
-
-export function getProcessManagerState(): typeof ProcessManagerStateSingleton {
-  return ProcessManagerStateSingleton;
-}
-
+/** Observer pattern: subscribe to run state changes. Returns unsubscribe. */
 export function subscribeRunStateChange(observer: RunStateObserver): () => void {
-  return ProcessManagerStateSingleton.subscribeRunStateChange(observer);
+  state.runStateObservers.add(observer);
+  return () => {
+    state.runStateObservers.delete(observer);
+  };
 }
 
+/** Observer pattern: subscribe to log chunk/finished events. Returns unsubscribe. */
 export function subscribeLogEvents(observer: LogEventsObserver): () => void {
-  return ProcessManagerStateSingleton.subscribeLogEvents(observer);
-}
-
-export function setRunStateChangeCallback(callback: () => void): void {
-  ProcessManagerStateSingleton.setRunStateChangeCallback(callback);
-}
-
-export function setLogHooks(hooks: LogEventsObserver): void {
-  ProcessManagerStateSingleton.setLogHooks(hooks);
+  state.logEventsObservers.add(observer);
+  return () => {
+    state.logEventsObservers.delete(observer);
+  };
 }
 
 export function notifyRunStateChange(): void {
-  ProcessManagerStateSingleton.notifyRunStateChange();
+  state.runStateObservers.forEach((observer) => safeCall(observer, "run state"));
 }
 
-export function emitLogToHooks(runId: number, content: string, streamType: "stdout" | "stderr"): void {
-  ProcessManagerStateSingleton.emitLogToHooks(runId, content, streamType);
+export function emitLogBatchToHooks(
+  runId: number,
+  chunks: LiveLogChunk[],
+  lastId: number | undefined
+): void {
+  state.logEventsObservers.forEach((observer) =>
+    safeCall(() => observer.onBatch(runId, chunks, lastId), "log batch")
+  );
 }
 
 export function notifyLogFinished(runId: number): void {
-  ProcessManagerStateSingleton.notifyLogFinished(runId);
+  state.logEventsObservers.forEach((observer) =>
+    safeCall(() => observer.onFinished(runId), "log finished")
+  );
 }
 
 export function getRunIdForCommand(commandId: number): Promise<number | null> {
-  return ProcessManagerStateSingleton.getRunIdForCommand(commandId);
+  return getRunningRunIdByCommandId(commandId);
 }
 
 export function getRunningRunIds(): number[] {
-  return ProcessManagerStateSingleton.getRunningRunIds();
+  return Array.from(state.runIdToPid.keys());
 }
 
 export function isRunLive(runId: number): boolean {
-  return ProcessManagerStateSingleton.isRunLive(runId);
+  return state.runIdToPid.has(runId);
 }

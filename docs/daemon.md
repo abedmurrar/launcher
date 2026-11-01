@@ -4,6 +4,8 @@ Keep the launcher running in the background, start it on boot, and restart on fa
 
 **Default port:** `9555` (override with `PORT`).
 
+**Bind address:** `127.0.0.1` by default. To reach it from other machines set `HOST=0.0.0.0` (no authentication. Anyone who can reach the port can run shell commands).
+
 **Data directory:** SQLite is created at `./data/launcher.db` relative to the project root. Always start the app with `WorkingDirectory` / `cwd` set to the project directory (e.g. `/path/to/launcher`).
 
 ---
@@ -169,4 +171,4 @@ journalctl --user -u launcher -f
 
 ## Security note
 
-This app is intended for **local use only** (`localhost`). Do not expose it to the network without authentication.
+This app is intended for **local use only**. It binds to `127.0.0.1` unless `HOST` is set. Do not set `HOST=0.0.0.0` on an untrusted network: there is no authentication.

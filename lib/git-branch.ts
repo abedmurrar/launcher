@@ -1,30 +1,48 @@
-import { execSync } from "child_process";
+import { execFile } from "child_process";
 import path from "path";
 import fs from "fs";
+import { globalSingleton } from "./global-singleton";
+import { config } from "./config";
+
+interface CacheEntry {
+  value: Promise<string | null>;
+  expiresAt: number;
+}
+
+const cache = globalSingleton("git-branch-cache", () => new Map<string, CacheEntry>());
+
+function readBranch(cwd: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    execFile(
+      "git",
+      ["rev-parse", "--abbrev-ref", "HEAD"],
+      { cwd, encoding: "utf8", timeout: 2000 },
+      (err, stdout) => {
+        if (err) return resolve(null);
+        const branch = stdout.trim();
+        resolve(branch && branch !== "HEAD" ? branch : null);
+      }
+    );
+  });
+}
 
 /**
- * Returns the current git branch name for the given working directory, or null
- * if the directory is not a git repo, git is not available, or branch cannot be read.
+ * Current git branch for a working directory, or null if it isn't a git repo / git is unavailable.
+ * Async (never blocks the event loop) and cached per directory for `gitBranchTtlMs`;
+ * concurrent lookups for the same directory share one git invocation.
  */
-export function getGitBranch(cwd: string): string | null {
-  if (!cwd || cwd.trim() === "") {
-    return null;
-  }
-  let resolved: string;
-  try {
-    resolved = path.resolve(cwd);
-    if (!fs.existsSync(resolved)) return null;
-  } catch {
-    return null;
-  }
-  try {
-    const branch = execSync("git rev-parse --abbrev-ref HEAD", {
-      encoding: "utf8",
-      cwd: resolved,
-      timeout: 2000,
-    }).trim();
-    return branch && branch !== "HEAD" ? branch : null;
-  } catch {
-    return null;
-  }
+export async function getGitBranch(cwd: string): Promise<string | null> {
+  if (!cwd || cwd.trim() === "") return null;
+  const resolved = path.resolve(cwd);
+
+  const now = Date.now();
+  const hit = cache.get(resolved);
+  if (hit && hit.expiresAt > now) return hit.value;
+
+  const value = fs.promises
+    .access(resolved)
+    .then(() => readBranch(resolved))
+    .catch(() => null);
+  cache.set(resolved, { value, expiresAt: now + config.gitBranchTtlMs });
+  return value;
 }

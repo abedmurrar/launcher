@@ -7,10 +7,7 @@ import {
   getRunningRunIdByCommandId,
   insertCommand,
   getCommandById,
-  updateCommandName,
-  updateCommandCommand,
-  updateCommandCwd,
-  updateCommandEnv,
+  updateCommandFields,
   deleteCommandById,
 } from "@/lib/db/queries";
 import {
@@ -23,75 +20,103 @@ import {
 import { broadcastCommands } from "@/lib/ws-broadcast";
 import type { ActionResult } from "./types";
 import { createCommandSchema, updateCommandSchema } from "./types";
-import { formatValidationError, parseEnv, invalidId, notFound } from "./helpers";
+import {
+  formatValidationError,
+  parseEnv,
+  invalidId,
+  notFound,
+  withLock,
+  isUniqueViolation,
+} from "./helpers";
 import { ActionResultFactory } from "./result-factory";
 
-export async function runCommand(
-  commandId: number
-): Promise<ActionResult<{ run_id: number; pid: number }>> {
-  if (Number.isNaN(commandId)) return invalidId();
+type CommandForRun = NonNullable<Awaited<ReturnType<typeof getCommandByIdForRun>>>;
+type StartResult = ActionResult<{ run_id: number; pid: number }>;
 
-  const cmd = await getCommandByIdForRun(commandId);
-  if (!cmd) return notFound("Command");
+const alreadyRunning = () => ActionResultFactory.error("Command is already running", 409);
 
-  const existingRunId = await getRunIdForCommand(commandId);
-  if (existingRunId !== null) {
-    return ActionResultFactory.error("Command is already running", 409);
+/** Insert a run row and spawn the process. Caller must hold the command lock. */
+async function startRun(cmd: CommandForRun): Promise<StartResult> {
+  let runId: number;
+  try {
+    runId = await insertRun(cmd.id);
+  } catch (err) {
+    // Partial unique index: at most one running run per command.
+    if (isUniqueViolation(err)) return alreadyRunning();
+    throw err;
   }
 
-  const env = parseEnv(cmd.env);
-  const runId = await insertRun(commandId);
-
   try {
-    const pid = spawnCommand(runId, commandId, cmd.command, cmd.cwd, env, null);
+    const pid = await spawnCommand(runId, cmd.id, cmd.command, cmd.cwd, parseEnv(cmd.env), null);
     return ActionResultFactory.success({ run_id: runId, pid });
   } catch (err) {
     await updateRunStatusFailed(runId);
     await broadcastCommands();
     const message = err instanceof Error ? err.message : "Failed to start process";
-    return ActionResultFactory.error(message);
+    return ActionResultFactory.error(message, 500);
   }
+}
+
+function serializeCommand(row: NonNullable<Awaited<ReturnType<typeof getCommandById>>>) {
+  return {
+    id: row.id,
+    name: row.name,
+    command: row.command,
+    cwd: row.cwd,
+    env: parseEnv(row.env),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    last_run_at: row.last_run_at,
+    last_exit_code: row.last_exit_code,
+  };
+}
+
+export async function runCommand(commandId: number): Promise<StartResult> {
+  if (Number.isNaN(commandId)) return invalidId();
+
+  return withLock(`command:${commandId}`, async () => {
+    const cmd = await getCommandByIdForRun(commandId);
+    if (!cmd) return notFound("Command");
+    if ((await getRunIdForCommand(commandId)) !== null) return alreadyRunning();
+    return startRun(cmd);
+  });
 }
 
 export async function stopCommand(
   commandId: number,
   runId?: number
-): Promise<ActionResult<{ ok: true }>> {
+): Promise<ActionResult<{ ok: true; forced: boolean }>> {
   if (Number.isNaN(commandId)) return invalidId();
+  if (runId != null && Number.isNaN(runId)) return ActionResultFactory.error("Invalid runId", 400);
 
-  let stopped: boolean;
-
-  if (runId != null) {
-    if (Number.isNaN(runId)) return ActionResultFactory.error("Invalid runId", 400);
-    const run = await getRunCommandId(runId);
-    if (!run || run.command_id !== commandId) {
-      return ActionResultFactory.error("Run not found or does not belong to this command", 404);
+  return withLock(`command:${commandId}`, async () => {
+    let result;
+    if (runId != null) {
+      const run = await getRunCommandId(runId);
+      if (!run || run.command_id !== commandId) {
+        return ActionResultFactory.error("Run not found or does not belong to this command", 404);
+      }
+      result = await stopRun(runId);
+    } else {
+      result = await stopByCommandId(commandId);
     }
-    stopped = await stopRun(runId);
-  } else {
-    stopped = await stopByCommandId(commandId);
-  }
 
-  if (!stopped) {
-    return ActionResultFactory.error("No running process found for this command", 404);
-  }
-  return ActionResultFactory.success({ ok: true as const });
+    if (!result.stopped) {
+      return ActionResultFactory.error("No running process found for this command", 404);
+    }
+    return ActionResultFactory.success({ ok: true as const, forced: result.forced });
+  });
 }
 
-export async function restartCommand(
-  commandId: number
-): Promise<ActionResult<{ run_id: number; pid: number }>> {
+export async function restartCommand(commandId: number): Promise<StartResult> {
   if (Number.isNaN(commandId)) return invalidId();
 
-  const cmd = await getCommandByIdForRun(commandId);
-  if (!cmd) return notFound("Command");
-
-  await stopByCommandIdAndWait(commandId);
-  const env = parseEnv(cmd.env);
-  const runId = await insertRun(commandId);
-  const pid = spawnCommand(runId, commandId, cmd.command, cmd.cwd, env, null);
-
-  return ActionResultFactory.success({ run_id: runId, pid });
+  return withLock(`command:${commandId}`, async () => {
+    const cmd = await getCommandByIdForRun(commandId);
+    if (!cmd) return notFound("Command");
+    await stopByCommandIdAndWait(commandId);
+    return startRun(cmd);
+  });
 }
 
 export async function createCommand(
@@ -107,17 +132,7 @@ export async function createCommand(
   const row = (await getCommandById(id))!;
 
   await broadcastCommands();
-  return ActionResultFactory.success({
-    id: row.id,
-    name: row.name,
-    command: row.command,
-    cwd: row.cwd,
-    env: typeof row.env === "string" ? JSON.parse(row.env) : row.env,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    last_run_at: row.last_run_at,
-    last_exit_code: row.last_exit_code,
-  });
+  return ActionResultFactory.success(serializeCommand(row));
 }
 
 export async function updateCommand(
@@ -131,44 +146,39 @@ export async function updateCommand(
     return ActionResultFactory.error(formatValidationError(parsed.error), 400);
   }
 
-  if (!(await commandExists(id))) return notFound("Command");
+  return withLock(`command:${id}`, async () => {
+    if (!(await commandExists(id))) return notFound("Command");
+    if ((await getRunningRunIdByCommandId(id)) !== null) {
+      return ActionResultFactory.error("Cannot edit command while it is running", 409);
+    }
 
-  if ((await getRunningRunIdByCommandId(id)) !== null) {
-    return ActionResultFactory.error("Cannot edit command while it is running", 409);
-  }
+    const { name, command, cwd, env } = parsed.data;
+    await updateCommandFields(id, {
+      name,
+      command,
+      cwd,
+      env: env !== undefined ? JSON.stringify(env) : undefined,
+    });
 
-  const { name, command, cwd, env } = parsed.data;
-  if (name !== undefined) await updateCommandName(name, id);
-  if (command !== undefined) await updateCommandCommand(command, id);
-  if (cwd !== undefined) await updateCommandCwd(cwd, id);
-  if (env !== undefined) await updateCommandEnv(JSON.stringify(env), id);
-
-  await broadcastCommands();
-  const row = (await getCommandById(id))!;
-  return ActionResultFactory.success({
-    id: row.id,
-    name: row.name,
-    command: row.command,
-    cwd: row.cwd,
-    env: typeof row.env === "string" ? JSON.parse(row.env as string) : row.env,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    last_run_at: row.last_run_at,
-    last_exit_code: row.last_exit_code,
+    await broadcastCommands();
+    const row = (await getCommandById(id))!;
+    return ActionResultFactory.success(serializeCommand(row));
   });
 }
 
 export async function deleteCommand(id: number): Promise<ActionResult<{ ok: true }>> {
   if (Number.isNaN(id)) return invalidId();
 
-  if (!(await commandExists(id))) return notFound("Command");
-  if ((await getRunningRunIdByCommandId(id)) !== null) {
-    return ActionResultFactory.error("Cannot delete command while it is running", 409);
-  }
+  return withLock(`command:${id}`, async () => {
+    if (!(await commandExists(id))) return notFound("Command");
+    if ((await getRunningRunIdByCommandId(id)) !== null) {
+      return ActionResultFactory.error("Cannot delete command while it is running", 409);
+    }
 
-  const changes = await deleteCommandById(id);
-  if (changes === 0) return notFound("Command");
+    const changes = await deleteCommandById(id);
+    if (changes === 0) return notFound("Command");
 
-  await broadcastCommands();
-  return ActionResultFactory.success({ ok: true as const });
+    await broadcastCommands();
+    return ActionResultFactory.success({ ok: true as const });
+  });
 }

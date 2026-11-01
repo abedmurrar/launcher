@@ -1,19 +1,4 @@
-import type { Socket } from "socket.io";
-import type { ActionPayload, ActionResult } from "./types";
-
-export function sendResult(
-  socket: Socket,
-  _type: string,
-  requestId: string | undefined,
-  result: ActionResult
-): void {
-  if (!socket.connected) return;
-  try {
-    socket.emit("action_result", { requestId, ...result });
-  } catch {
-    // ignore
-  }
-}
+import type { ActionPayload } from "./types";
 
 export function parseId(value: unknown): number {
   return Number(value);

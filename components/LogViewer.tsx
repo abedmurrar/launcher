@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import axios from "axios";
 import { apiClient } from "@/lib/api";
-import { useWs } from "@/context/ws";
+import { useRunLogs } from "@/hooks/useRunLogs";
+import { LogPane } from "@/components/shared/LogPane";
+import { useToast } from "@/components/shared/Toast";
 
 interface LogViewerProps {
   runId: number;
@@ -11,11 +13,9 @@ interface LogViewerProps {
 }
 
 export function LogViewer({ runId, onClose }: LogViewerProps) {
-  const [logs, setLogs] = useState<{ streamType: "stdout" | "stderr"; data: string }[]>([]);
-  const [live, setLive] = useState(true);
+  const { segments, truncated, live, loaded, clear } = useRunLogs(runId);
   const [clearing, setClearing] = useState(false);
-  const preRef = useRef<HTMLPreElement>(null);
-  const { subscribeToLogs, unsubscribeFromLogs } = useWs();
+  const { toast } = useToast();
 
   const clearLogs = useCallback(async () => {
     if (clearing) return;
@@ -23,55 +23,33 @@ export function LogViewer({ runId, onClose }: LogViewerProps) {
     try {
       const res = await apiClient.delete(`/api/runs/${runId}/logs`);
       if (res.status >= 200 && res.status < 300) {
-        setLogs([]);
+        clear();
       } else {
-        const errorMessage = (res.data as { error?: string })?.error ?? "Failed to clear logs";
-        alert(errorMessage);
+        toast((res.data as { error?: string })?.error ?? "Failed to clear logs", "error");
       }
     } catch (err) {
-      const message = axios.isAxiosError(err) && err.response?.data?.error
-        ? String(err.response.data.error)
-        : "Failed to clear logs";
-      alert(message);
+      const message =
+        axios.isAxiosError(err) && err.response?.data?.error
+          ? String(err.response.data.error)
+          : "Failed to clear logs";
+      toast(message, "error");
     } finally {
       setClearing(false);
     }
-  }, [runId, clearing]);
-
-  useEffect(() => {
-    subscribeToLogs(runId, {
-      onHistory: (chunks) => {
-        setLogs(
-          chunks.map((c) => ({
-            streamType: c.stream_type as "stdout" | "stderr",
-            data: c.content,
-          }))
-        );
-      },
-      onChunk: (streamType, data) => {
-        setLogs((prev) => [...prev, { streamType, data }]);
-      },
-      onFinished: () => setLive(false),
-    });
-    return () => unsubscribeFromLogs(runId);
-  }, [runId, subscribeToLogs, unsubscribeFromLogs]);
-
-  useEffect(() => {
-    if (preRef.current) preRef.current.scrollTop = preRef.current.scrollHeight;
-  }, [logs]);
+  }, [runId, clearing, clear, toast]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-zinc-100 dark:bg-zinc-900 rounded-lg shadow-xl flex flex-col w-full max-w-4xl max-h-[80vh] border border-zinc-300 dark:border-zinc-700">
         <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-300 dark:border-zinc-700">
           <span className="font-mono text-sm text-zinc-600 dark:text-zinc-400">
-            Run #{runId} {live && "(live)"}
+            Run #{runId} {loaded && live && "(live)"}
           </span>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={clearLogs}
-              disabled={clearing || logs.length === 0}
+              disabled={clearing || segments.length === 0}
               className="px-3 py-1 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 hover:bg-amber-300 dark:hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
               {clearing ? "Clearing…" : "Clear logs"}
@@ -85,19 +63,12 @@ export function LogViewer({ runId, onClose }: LogViewerProps) {
             </button>
           </div>
         </div>
-        <pre
-          ref={preRef}
-          className="flex-1 overflow-auto p-4 text-sm font-mono whitespace-pre-wrap break-all text-zinc-800 dark:text-zinc-200"
-        >
-          {logs.map((entry, i) => (
-            <span
-              key={i}
-              className={entry.streamType === "stderr" ? "text-red-600 dark:text-red-400" : ""}
-            >
-              {entry.data}
-            </span>
-          ))}
-        </pre>
+        <LogPane
+          segments={segments}
+          truncated={truncated}
+          loaded={loaded}
+          className="flex-1 p-4 text-sm"
+        />
       </div>
     </div>
   );

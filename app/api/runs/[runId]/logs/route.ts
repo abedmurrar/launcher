@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runExists, getLogChunksFullByRunId, deleteLogChunksByRunId } from "@/lib/db/queries";
 
+/**
+ * GET /api/runs/:runId/logs[?before=<chunkId>&limit=<n>]
+ * Without params returns every chunk; with `limit` returns the `limit` chunks before `before` (paging back).
+ */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ runId: string }> }
 ) {
   const runId = Number((await params).runId);
@@ -12,7 +16,15 @@ export async function GET(
   if (!(await runExists(runId))) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
-  const chunks = await getLogChunksFullByRunId(runId);
+  const { searchParams } = new URL(request.url);
+  const beforeParam = searchParams.get("before");
+  const limitParam = searchParams.get("limit");
+  const before = beforeParam != null ? Number(beforeParam) : undefined;
+  const limit = limitParam != null ? Math.min(Math.max(1, Number(limitParam)), 10_000) : undefined;
+  if ((before !== undefined && Number.isNaN(before)) || (limit !== undefined && Number.isNaN(limit))) {
+    return NextResponse.json({ error: "Invalid before/limit" }, { status: 400 });
+  }
+  const chunks = await getLogChunksFullByRunId(runId, { before, limit });
   return NextResponse.json({ run_id: runId, chunks });
 }
 

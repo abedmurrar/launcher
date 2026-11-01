@@ -19,7 +19,7 @@ export function GroupListView(props: UseGroupListReturn) {
     connectionError,
     showForm,
     editingId,
-    loading,
+    pending,
     logGroupRunId,
     openCreateForm,
     closeCreateForm,
@@ -145,20 +145,20 @@ export function GroupListView(props: UseGroupListReturn) {
                         <button
                           type="button"
                           onClick={() => handleStop(g.id)}
-                          disabled={!!loading}
+                          disabled={!!pending[g.id]}
                           title="Stop"
                           className="p-1.5 rounded bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 disabled:opacity-50"
                         >
-                          {loading?.groupId === g.id && loading?.action === "stop" ? "…" : <Square size={iconSize} />}
+                          {pending[g.id] === "stop" ? <span className="text-xs px-0.5">Stopping…</span> : <Square size={iconSize} />}
                         </button>
                         <button
                           type="button"
                           onClick={() => handleRestart(g.id)}
-                          disabled={!!loading || g.command_ids.length === 0}
+                          disabled={!!pending[g.id] || g.command_ids.length === 0}
                           title="Restart"
                           className="p-1.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 disabled:opacity-50"
                         >
-                          {loading?.groupId === g.id && loading?.action === "restart" ? "…" : <RotateCcw size={iconSize} />}
+                          {pending[g.id] === "restart" ? "…" : <RotateCcw size={iconSize} />}
                         </button>
                         {g.running_group_run_id != null && (
                           <button
@@ -176,11 +176,11 @@ export function GroupListView(props: UseGroupListReturn) {
                         <button
                           type="button"
                           onClick={() => handleRun(g.id)}
-                          disabled={!!loading || g.command_ids.length === 0}
+                          disabled={!!pending[g.id] || g.command_ids.length === 0}
                           title="Run"
                           className="p-1.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 disabled:opacity-50"
                         >
-                          {loading?.groupId === g.id && loading?.action === "run" ? "…" : <Play size={iconSize} />}
+                          {pending[g.id] === "run" ? "…" : <Play size={iconSize} />}
                         </button>
                         {g.last_run != null && (
                           <button

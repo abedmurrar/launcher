@@ -3,6 +3,8 @@ export type {
   GroupListItem,
   LogChunk,
   LogCallbacks,
+  LiveLogChunk,
+  LogHistoryMeta,
   ActionResult,
   WsContextValue,
 } from "./types";

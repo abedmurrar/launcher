@@ -1,11 +1,20 @@
+import type { Server } from "socket.io";
 import { subscribeRunStateChange, subscribeLogEvents } from "@/lib/process-manager";
-import { onRunStateChange } from "./lists";
-import { pushLogChunk, pushLogFinished } from "./log-stream";
+import { globalSingleton } from "@/lib/global-singleton";
+import { setIo } from "./clients";
+import { scheduleListsBroadcast } from "./lists";
+import { pushLogBatch, pushLogFinished } from "./log-stream";
 
-export function init(): void {
-  subscribeRunStateChange(() => void onRunStateChange().catch((err) => console.error("[ws] onRunStateChange failed:", err)));
+const initState = globalSingleton("ws-init", () => ({ done: false }));
+
+/** Wire process-manager events to Socket.IO. Idempotent. */
+export function init(io: Server): void {
+  setIo(io);
+  if (initState.done) return;
+  initState.done = true;
+  subscribeRunStateChange(scheduleListsBroadcast);
   subscribeLogEvents({
-    onChunk: pushLogChunk,
+    onBatch: pushLogBatch,
     onFinished: pushLogFinished,
   });
 }

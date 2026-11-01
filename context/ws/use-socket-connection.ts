@@ -1,137 +1,98 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { io, type Socket } from "socket.io-client";
-import type { IncomingMessage, LogChunk } from "./types";
-import {
-  CONNECTION_ERROR_AFTER_MS,
-  RECONNECT_DELAY_MS,
-} from "./constants";
-
-function getSocketIoUrl(): string {
-  if (typeof window === "undefined") return "";
-  return window.location.origin;
-}
+import type { IncomingMessage, LiveLogChunk, LogChunk } from "./types";
+import { CONNECTION_ERROR_AFTER_MS, RECONNECT_DELAY_MS } from "./constants";
 
 export interface SocketConnectionParams {
   socketRef: React.MutableRefObject<Socket | null>;
-  connectionErrorTimeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
   setReady: (ready: boolean) => void;
   setConnectionError: (error: boolean) => void;
   onMessage: (message: IncomingMessage) => void;
+  /** Called on every (re)connect, e.g. to re-subscribe to logs. */
+  onConnect: (socket: Socket) => void;
 }
 
-function clearConnectionErrorTimeout(
-  timeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
-): void {
-  if (timeoutRef.current != null) {
-    clearTimeout(timeoutRef.current);
-    timeoutRef.current = null;
-  }
-}
+const debug = (...args: unknown[]) => {
+  if (process.env.NODE_ENV === "development") console.log("[socket.io]", ...args);
+};
 
+/**
+ * One Socket.IO connection for the app's lifetime. Reconnection is handled by Socket.IO itself
+ * (with backoff); we only re-request state and re-subscribe after each connect.
+ */
 export function useSocketConnection(params: SocketConnectionParams): void {
-  const {
-    socketRef,
-    connectionErrorTimeoutRef,
-    setReady,
-    setConnectionError,
-    onMessage,
-  } = params;
+  const { socketRef, setReady, setConnectionError } = params;
 
-  const onMessageRef = useRef(onMessage);
-  onMessageRef.current = onMessage;
+  const onMessageRef = useRef(params.onMessage);
+  const onConnectRef = useRef(params.onConnect);
+  useLayoutEffect(() => {
+    onMessageRef.current = params.onMessage;
+    onConnectRef.current = params.onConnect;
+  });
 
   useEffect(() => {
-    const origin = getSocketIoUrl();
-    if (!origin) return;
+    if (typeof window === "undefined") return;
 
-    const connect = (): void => {
-      setConnectionError(false);
-      clearConnectionErrorTimeout(connectionErrorTimeoutRef);
+    const socket = io(window.location.origin, {
+      path: "/ws",
+      transports: ["polling", "websocket"],
+      reconnection: true,
+      reconnectionDelay: RECONNECT_DELAY_MS,
+      reconnectionDelayMax: 10_000,
+    });
+    socketRef.current = socket;
 
-      if (process.env.NODE_ENV === "development") {
-        console.log("[socket.io] connecting to", origin);
-      }
-
-      const socket = io(origin, {
-        path: "/ws",
-        transports: ["polling", "websocket"],
-        autoConnect: true,
-      });
-
-      socketRef.current = socket;
-
-      connectionErrorTimeoutRef.current = setTimeout(() => {
-        connectionErrorTimeoutRef.current = null;
-        if (socketRef.current && !socketRef.current.connected) {
-          setConnectionError(true);
-        }
-      }, CONNECTION_ERROR_AFTER_MS);
-
-      socket.on("connect", () => {
-        if (process.env.NODE_ENV === "development") {
-          console.log("[socket.io] connected");
-        }
-        clearConnectionErrorTimeout(connectionErrorTimeoutRef);
-        setReady(true);
-        socket.emit("initial");
-      });
-
-      socket.on("connect_error", () => {
-        if (process.env.NODE_ENV === "development") {
-          console.log("[socket.io] connect_error");
-        }
-        setConnectionError(true);
-      });
-
-      socket.on("disconnect", (reason) => {
-        if (process.env.NODE_ENV === "development") {
-          console.log("[socket.io] disconnect", reason);
-        }
-        setReady(false);
-        socketRef.current = null;
-        setTimeout(connect, RECONNECT_DELAY_MS);
-      });
-
-      const forward = (msg: IncomingMessage) => {
-        onMessageRef.current(msg);
-      };
-
-      socket.on("commands", (data: unknown) => forward({ type: "commands", data }));
-      socket.on("groups", (data: unknown) => forward({ type: "groups", data }));
-      socket.on("log_history", (payload: { runId?: number; chunks?: LogChunk[] }) =>
-        forward({ type: "log_history", runId: payload?.runId, chunks: payload?.chunks })
-      );
-      socket.on("log", (payload: { runId?: number; streamType?: string; data?: string }) =>
-        forward({
-          type: "log",
-          runId: payload?.runId,
-          streamType: payload?.streamType as "stdout" | "stderr" | undefined,
-          data: payload?.data,
-        })
-      );
-      socket.on("log_finished", (payload: { runId?: number }) =>
-        forward({ type: "log_finished", runId: payload?.runId })
-      );
-      socket.on("action_result", (payload: unknown) => {
-        const p = payload as Record<string, unknown>;
-        forward({
-          type: "action_result",
-          requestId: p?.requestId as string | undefined,
-          success: p?.success as boolean | undefined,
-          data: p?.data,
-          error: p?.error as string | undefined,
-        });
-      });
+    let errorTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      errorTimer = null;
+      if (!socket.connected) setConnectionError(true);
+    }, CONNECTION_ERROR_AFTER_MS);
+    const clearErrorTimer = () => {
+      if (errorTimer !== null) clearTimeout(errorTimer);
+      errorTimer = null;
     };
 
-    connect();
+    socket.on("connect", () => {
+      debug("connected");
+      clearErrorTimer();
+      setConnectionError(false);
+      setReady(true);
+      socket.emit("initial");
+      onConnectRef.current(socket);
+    });
+
+    socket.on("connect_error", () => {
+      debug("connect_error");
+      setConnectionError(true);
+    });
+
+    socket.on("disconnect", (reason) => {
+      debug("disconnect", reason);
+      setReady(false);
+      // Socket.IO doesn't auto-reconnect after a server-initiated disconnect.
+      if (reason === "io server disconnect") socket.connect();
+    });
+
+    const forward = (msg: IncomingMessage) => onMessageRef.current(msg);
+
+    socket.on("commands", (data: unknown) => forward({ type: "commands", data }));
+    socket.on("groups", (data: unknown) => forward({ type: "groups", data }));
+    socket.on(
+      "log_history",
+      (p: { runId?: number; chunks?: LogChunk[]; truncated?: boolean; lastId?: number; live?: boolean }) =>
+        forward({ type: "log_history", ...p })
+    );
+    socket.on("log_batch", (p: { runId?: number; chunks?: LiveLogChunk[]; lastId?: number }) =>
+      forward({ type: "log_batch", ...p })
+    );
+    socket.on("log_finished", (p: { runId?: number }) => forward({ type: "log_finished", ...p }));
 
     return () => {
-      clearConnectionErrorTimeout(connectionErrorTimeoutRef);
-      socketRef.current?.disconnect();
-      socketRef.current = null;
+      clearErrorTimer();
+      socket.removeAllListeners();
+      socket.disconnect();
+      if (socketRef.current === socket) socketRef.current = null;
     };
-  }, [socketRef, connectionErrorTimeoutRef, setReady, setConnectionError]);
+  }, [socketRef, setReady, setConnectionError]);
 }

@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useWs } from "@/context/ws";
+import { useToast } from "@/components/shared/Toast";
 import { CommandAction } from "@/lib/ws-action-handlers/types";
 import type { CommandListItem } from "@/context/ws";
 import type { CommandFormData } from "@/components/CommandForm";
@@ -12,16 +13,23 @@ import type { CommandFormData } from "@/components/CommandForm";
  */
 export function useCommandList() {
   const { commands, initialLoadDone, connectionError, sendAction } = useWs();
+  const { toast, confirm } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [logRunId, setLogRunId] = useState<number | null>(null);
 
+  const nameOf = useCallback(
+    (id: number) => commands.find((c) => c.id === id)?.name ?? `#${id}`,
+    [commands]
+  );
+
   const handleRun = useCallback(
     async (id: number) => {
       const result = await sendAction(CommandAction.Run, { commandId: id });
-      if (!result.success) alert(result.error ?? "Failed to run");
+      if (!result.success) toast(result.error ?? "Failed to run", "error");
+      return result.success;
     },
-    [sendAction]
+    [sendAction, toast]
   );
 
   const handleStop = useCallback(
@@ -30,50 +38,56 @@ export function useCommandList() {
         commandId: id,
         ...(runId != null ? { runId } : {}),
       });
-      if (!result.success) alert(result.error ?? "Failed to stop");
+      if (!result.success) {
+        toast(result.error ?? "Failed to stop", "error");
+      } else if ((result.data as { forced?: boolean } | undefined)?.forced) {
+        toast(`"${nameOf(id)}" ignored SIGTERM and was force-killed`, "info");
+      }
+      return result.success;
     },
-    [sendAction]
+    [sendAction, toast, nameOf]
   );
 
   const handleRestart = useCallback(
     async (id: number) => {
       const result = await sendAction(CommandAction.Restart, { commandId: id });
-      if (!result.success) alert(result.error ?? "Failed to restart");
+      if (!result.success) toast(result.error ?? "Failed to restart", "error");
+      return result.success;
     },
-    [sendAction]
+    [sendAction, toast]
   );
 
   const handleCreate = useCallback(
     async (data: CommandFormData) => {
       const result = await sendAction(CommandAction.CreateCommand, { data });
       if (!result.success) {
-        alert(result.error ?? "Failed to create");
+        toast(result.error ?? "Failed to create", "error");
         return;
       }
       setShowForm(false);
     },
-    [sendAction]
+    [sendAction, toast]
   );
 
   const handleUpdate = useCallback(
     async (id: number, data: CommandFormData) => {
       const result = await sendAction(CommandAction.UpdateCommand, { id, data });
       if (!result.success) {
-        alert(result.error ?? "Failed to update");
+        toast(result.error ?? "Failed to update", "error");
         return;
       }
       setEditingId(null);
     },
-    [sendAction]
+    [sendAction, toast]
   );
 
   const handleDelete = useCallback(
     async (id: number) => {
-      if (!confirm("Delete this command?")) return;
+      if (!(await confirm(`Delete "${nameOf(id)}"?`, "Delete"))) return;
       const result = await sendAction(CommandAction.DeleteCommand, { id });
-      if (!result.success) alert(result.error ?? "Failed to delete");
+      if (!result.success) toast(result.error ?? "Failed to delete", "error");
     },
-    [sendAction]
+    [sendAction, toast, confirm, nameOf]
   );
 
   const openCreateForm = useCallback(() => {
