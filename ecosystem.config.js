@@ -12,8 +12,11 @@ module.exports = {
     {
       name: "launcher",
       cwd: __dirname,
-      script: "npm",
-      args: "start",
+      // The compiled server (`yarn build` produces dist/server.cjs). Running node directly avoids
+      // the npm + tsx wrapper processes (~120 MB) and runtime TypeScript transpiling.
+      script: "dist/server.cjs",
+      interpreter: "node",
+      node_args: "--enable-source-maps",
       // Back off between crash restarts (100ms doubling, capped by PM2 at 15s) instead of
       // restarting in a tight loop that floods the logs.
       exp_backoff_restart_delay: 100,

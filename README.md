@@ -30,7 +30,7 @@ Tests live in `test/` and use a throwaway DB per file (`LAUNCHER_DATA_DIR`); the
 | Install deps | `npm install` | Install dependencies. |
 | Build | `npm run build` | Production build (Next.js + server). |
 | Run (dev) | `npm run dev` | Dev server with Socket.IO at `http://localhost:9555` (or `PORT`); uses polling then WebSocket. |
-| Run (prod) | `npm start` | Production server; requires `npm run build` first. |
+| Run (prod) | `npm start` | Production server (`node dist/server.cjs`); requires `npm run build` first, which builds Next.js and bundles the custom server with esbuild. |
 
 - **Port:** Default is `9555`. Override with `PORT=1337 npm start` (or `npm run dev`).
 - **Bind address:** Default is `127.0.0.1` (local only). To use it from other devices, set a token as well: `HOST=0.0.0.0 LAUNCHER_TOKEN=<long random secret> npm start`. The server refuses to listen on a non-loopback address without `LAUNCHER_TOKEN` unless you set `LAUNCHER_ALLOW_INSECURE=1`.
