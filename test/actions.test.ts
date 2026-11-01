@@ -9,7 +9,9 @@ import {
   runGroup,
   stopGroup,
   restartGroup,
+  stopAll,
 } from "@/lib/actions";
+import { buildCommandsList } from "@/lib/commands-list";
 import {
   getRunDetailsById,
   getLastGroupRunByGroupId,
@@ -105,5 +107,36 @@ describe("group actions", () => {
       success: false,
       code: 400,
     });
+  });
+});
+
+describe("stop all and list status", () => {
+  it("stops every running group and command", async () => {
+    const solo = await createCommand("sleep 30");
+    const stubborn = await createCommand("trap '' TERM; while true; do sleep 0.1; done");
+    const member = await createCommand("sleep 30");
+    const group = await createGroup({ name: `stop-all-${Date.now()}` });
+    const groupId = (ok(group) as { id: number }).id;
+    await setGroupCommands(groupId, { commandIds: [member] });
+    await runCommand(solo);
+    await runCommand(stubborn);
+    await runGroup(groupId);
+    await new Promise((r) => setTimeout(r, 200));
+
+    const result = await stopAll();
+    expect(result).toMatchObject({ success: true, data: { stopped: 3, forced: true } });
+    for (const id of [solo, stubborn, member]) {
+      expect(await getRunningRunIdByCommandId(id)).toBeNull();
+    }
+    expect((await getLastGroupRunByGroupId(groupId))?.status).toBe("killed");
+    expect(await stopAll()).toMatchObject({ success: true, data: { stopped: 0, forced: false } });
+  });
+
+  it("exposes the last run status in the commands list", async () => {
+    const id = await createCommand("exit 2");
+    const run = await runCommand(id);
+    await waitForRunStatus(ok(run).run_id, "failed");
+    const item = (await buildCommandsList()).find((c) => c.id === id);
+    expect(item).toMatchObject({ last_run_status: "failed", last_exit_code: 2, running: false });
   });
 });

@@ -80,6 +80,14 @@ export async function updateCommandHttp(
   );
 }
 
+export async function stopAllHttp(
+  _payload: Record<string, unknown>,
+  onListsUpdated: OnListsUpdated
+): Promise<ActionResult> {
+  const res = await apiClient.post("/api/stop-all");
+  return adaptResponseToActionResult({ data: res.data, status: res.status }, onListsUpdated);
+}
+
 export async function deleteCommandHttp(
   payload: Record<string, unknown>,
   onListsUpdated: OnListsUpdated

@@ -56,6 +56,8 @@ export interface LogTail {
   truncated: boolean;
   /** Id of the newest chunk included (0 if none). */
   lastId: number;
+  /** Id of the oldest chunk included (0 if none); page back with `before=firstId`. */
+  firstId: number;
 }
 
 /** The newest chunks of a run whose combined size is about `maxBytes`, oldest first. */
@@ -72,14 +74,19 @@ export async function getLogTailByRunId(runId: number, maxBytes: number): Promis
     [runId, maxBytes]
   )) as LogChunkContentRow[];
 
-  if (chunks.length === 0) return { chunks, truncated: false, lastId: 0 };
+  if (chunks.length === 0) return { chunks, truncated: false, lastId: 0, firstId: 0 };
 
   const older = await db("log_chunks")
     .select("id")
     .where("run_id", runId)
     .andWhere("id", "<", chunks[0].id)
     .first();
-  return { chunks, truncated: older != null, lastId: chunks[chunks.length - 1].id };
+  return {
+    chunks,
+    truncated: older != null,
+    lastId: chunks[chunks.length - 1].id,
+    firstId: chunks[0].id,
+  };
 }
 
 export interface LogChunkFullRow {

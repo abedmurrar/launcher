@@ -80,7 +80,14 @@ export function useSocketConnection(params: SocketConnectionParams): void {
     socket.on("groups", (data: unknown) => forward({ type: "groups", data }));
     socket.on(
       "log_history",
-      (p: { runId?: number; chunks?: LogChunk[]; truncated?: boolean; lastId?: number; live?: boolean }) =>
+      (p: {
+        runId?: number;
+        chunks?: LogChunk[];
+        truncated?: boolean;
+        lastId?: number;
+        firstId?: number;
+        live?: boolean;
+      }) =>
         forward({ type: "log_history", ...p })
     );
     socket.on("log_batch", (p: { runId?: number; chunks?: LiveLogChunk[]; lastId?: number }) =>

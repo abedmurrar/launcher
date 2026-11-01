@@ -14,7 +14,8 @@ interface LogStreamPanelProps {
 }
 
 function LogStreamPanel({ runId, title }: LogStreamPanelProps) {
-  const { segments, truncated, live, loaded } = useRunLogs(runId);
+  const { segments, truncated, live, loaded, canLoadEarlier, loadingEarlier, loadEarlier } =
+    useRunLogs(runId);
 
   return (
     <div className="flex flex-col rounded-lg border border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800/80 overflow-hidden min-h-0 h-full">
@@ -25,6 +26,10 @@ function LogStreamPanel({ runId, title }: LogStreamPanelProps) {
         segments={segments}
         truncated={truncated}
         loaded={loaded}
+        runId={runId}
+        canLoadEarlier={canLoadEarlier}
+        loadingEarlier={loadingEarlier}
+        onLoadEarlier={loadEarlier}
         className="flex-1 p-3 text-xs min-h-[120px]"
       />
     </div>

@@ -228,7 +228,8 @@ The DB file is created at `./data/launcher.db` (or as configured); `data/` is cr
 | PUT | `/api/groups/[id]/commands` | Set members (body: `commandIds[]`). |
 | DELETE | `/api/groups/[id]` | Delete group. |
 | POST | `/api/groups/[id]/run` | Run all member commands in parallel; create group_run and runs; on first failure, kill others and set status. |
-| GET | `/api/runs/[runId]/logs` | Fetch persisted log chunks: full, or `?before=<chunkId>&limit=<n>` to page backwards. |
+| GET | `/api/runs/[runId]/logs` | Fetch persisted log chunks: full, or `?before=<chunkId>&limit=<n>` to page backwards; `&format=text` for plain text. |
+| POST | `/api/stop-all` | Stop every running group and command (also the `stop_all` socket action). |
 | DELETE | `/api/runs/[runId]/logs` | Clear a run's log chunks. |
 
 Live logs are streamed over Socket.IO (`subscribe_logs` → `log_history` tail, then `log_batch` events, then `log_finished`).

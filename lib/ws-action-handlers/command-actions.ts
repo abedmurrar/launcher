@@ -6,6 +6,7 @@ import {
   updateCommand,
   deleteCommand,
 } from "@/lib/actions/commands";
+import { stopAll } from "@/lib/actions/stop-all";
 import type { ActionPayload, ActionResult } from "./types";
 import { CommandAction } from "./types";
 import { parseId, parseOptionalRunId } from "./reply";
@@ -24,6 +25,8 @@ export async function handleCommandAction(type: string, payload: ActionPayload):
       return updateCommand(parseId(payload.id), (payload.data as ActionPayload) ?? {});
     case CommandAction.DeleteCommand:
       return deleteCommand(parseId(payload.id));
+    case CommandAction.StopAll:
+      return stopAll();
     default:
       return null;
   }

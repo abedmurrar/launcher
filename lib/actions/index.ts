@@ -10,6 +10,7 @@ export {
   updateCommand,
   deleteCommand,
 } from "./commands";
+export { stopAll } from "./stop-all";
 export {
   createGroup,
   updateGroup,

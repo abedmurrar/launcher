@@ -37,6 +37,7 @@ export function handleIncomingMessage(
         callbacks.getLogSubscribers().get(message.runId)?.onHistory?.(message.chunks, {
           truncated: Boolean(message.truncated),
           lastId: typeof message.lastId === "number" ? message.lastId : 0,
+          firstId: typeof message.firstId === "number" ? message.firstId : 0,
           live: message.live !== false,
         });
       }

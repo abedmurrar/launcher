@@ -76,8 +76,9 @@ export interface CommandListRow {
   /** Running run id/pid, if any. */
   run_id: number | null;
   run_pid: number | null;
-  /** Most recent run id, if any. */
+  /** Most recent run id and status, if any. */
   last_run_id: number | null;
+  last_run_status: string | null;
 }
 
 /** Commands with their running run and latest run, in one query (most recently run first). */
@@ -87,7 +88,8 @@ export async function listCommandsForList(): Promise<CommandListRow[]> {
     `SELECT c.id, c.name, c.command, c.cwd, c.env, c.created_at, c.updated_at,
             c.last_run_at, c.last_exit_code,
             r.id AS run_id, r.pid AS run_pid,
-            (SELECT lr.id FROM runs lr WHERE lr.command_id = c.id ORDER BY lr.id DESC LIMIT 1) AS last_run_id
+            (SELECT lr.id FROM runs lr WHERE lr.command_id = c.id ORDER BY lr.id DESC LIMIT 1) AS last_run_id,
+            (SELECT lr.status FROM runs lr WHERE lr.command_id = c.id ORDER BY lr.id DESC LIMIT 1) AS last_run_status
      FROM commands c
      LEFT JOIN runs r ON r.command_id = c.id AND r.status = 'running'
      ORDER BY c.last_run_at IS NOT NULL DESC, c.last_run_at DESC`
