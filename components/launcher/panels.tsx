@@ -9,6 +9,7 @@ import { GroupLogViewer } from "@/components/GroupLogViewer";
 import { RunControls } from "@/components/RunControls";
 import { apiClient } from "@/lib/api";
 import { parseDbDate, relativeTime } from "@/lib/format-time";
+import { describeEnd } from "@/lib/end-reason";
 import type { useCommandActions } from "@/hooks/useCommandActions";
 import type { useGroupActions } from "@/hooks/useGroupActions";
 import { StatusDot, StatusText, runStateOf } from "./StatusDot";
@@ -72,7 +73,10 @@ export function CommandDetail({
           {!c.running && lastRun && (
             <span className="text-zinc-500" title={lastRun.toLocaleString()}>
               {" "}· {relativeTime(lastRun)}
-              {c.last_exit_code != null && ` · exit ${c.last_exit_code}`}
+              {(() => {
+                const end = describeEnd(c.last_end_reason, c.last_exit_code, c.last_run_status);
+                return end ? ` · ${end}` : c.last_exit_code === 0 ? " · exit 0" : null;
+              })()}
             </span>
           )}
         </div>

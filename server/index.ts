@@ -4,7 +4,8 @@ import http from "http";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
 import { getDb, closeDb } from "../lib/db/connection";
-import { reconcileStaleRuns, flushAllLogs, stopAllTailing } from "../lib/process-manager";
+import { startSupervisor, stopSupervisor, flushAllLogs, stopAllTailing } from "../lib/process-manager";
+import { acquireInstanceLock, releaseInstanceLock, InstanceLockError } from "../lib/instance-lock";
 import { init } from "../lib/ws-broadcast";
 import { startLogRetention } from "../lib/log-retention";
 import { handleSocketConnection } from "./ws-handler";
@@ -31,9 +32,21 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  try {
+    acquireInstanceLock();
+  } catch (err) {
+    if (err instanceof InstanceLockError) {
+      console.error(`[launcher] ${err.message}`);
+      process.exit(1);
+    }
+    throw err;
+  }
+
   await app.prepare();
   await getDb();
-  await reconcileStaleRuns();
+  // Reconcile runs from before this start (adopt live ones, end the rest with a reason), then
+  // keep supervising so the DB never drifts from reality.
+  await startSupervisor();
 
   const server = http.createServer((req, res) => {
     if (rejectUnauthorized(req, res, token)) return;
@@ -61,6 +74,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     console.log(`[launcher] ${signal} received, shutting down (managed processes keep running)`);
     stopRetention();
+    stopSupervisor();
     const force = setTimeout(() => process.exit(0), 5_000);
     force.unref();
     try {
@@ -69,6 +83,7 @@ async function main(): Promise<void> {
       await stopAllTailing();
       await flushAllLogs();
       await closeDb();
+      releaseInstanceLock();
     } catch (err) {
       console.error("[launcher] shutdown error:", err);
     }

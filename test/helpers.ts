@@ -106,8 +106,7 @@ export async function simulateLauncherCrash(): Promise<void> {
   runIdToPid.clear();
   groupRunIdToPids.clear();
   const g = globalThis as Record<string, unknown>;
-  const watchers = g["__launcher_adopted-watchers"] as Map<number, ReturnType<typeof setInterval>> | undefined;
-  watchers?.forEach((t) => clearInterval(t));
-  watchers?.clear();
-  (g["__launcher_finalized-runs"] as Set<number> | undefined)?.clear();
+  const supervisor = g["__launcher_supervisor"] as { adopted: Map<number, unknown> } | undefined;
+  supervisor?.adopted.clear();
+  (g["__launcher_finalizing-runs"] as Map<number, unknown> | undefined)?.clear();
 }

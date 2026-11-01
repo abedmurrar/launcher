@@ -4,6 +4,7 @@ import { GitBranch, Layers } from "lucide-react";
 import type { CommandListItem, GroupListItem } from "@/context/ws";
 import { RunControls } from "@/components/RunControls";
 import { parseDbDate, relativeTime } from "@/lib/format-time";
+import { describeEnd } from "@/lib/end-reason";
 import { StatusDot, runStateOf } from "./StatusDot";
 import type { GroupRunAction } from "@/hooks/useGroupActions";
 
@@ -18,18 +19,19 @@ function LastRun({
   at,
   exitCode,
   status,
+  reason,
   running,
 }: {
   at: string | null;
   exitCode?: number | null;
   status?: string | null;
+  reason?: string | null;
   running: boolean;
 }) {
   if (running) return <span className="text-emerald-600 dark:text-emerald-400">running</span>;
   const date = parseDbDate(at);
   if (!date) return <span className="text-zinc-400">never run</span>;
-  const suffix =
-    status === "killed" ? "stopped" : exitCode != null && exitCode !== 0 ? `exit ${exitCode}` : null;
+  const suffix = describeEnd(reason, exitCode, status);
   return (
     <span title={date.toLocaleString()}>
       {relativeTime(date)}
@@ -62,7 +64,7 @@ export function CommandRow({
       aria-current={selected ? "true" : undefined}
       onClick={onSelect}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onSelect())}
-      className={`${rowBase} ${rowState(selected)} grid-cols-[auto_minmax(0,1fr)_auto] sm:grid-cols-[auto_minmax(0,1fr)_8rem_7rem_auto]`}
+      className={`${rowBase} ${rowState(selected)} grid-cols-[auto_minmax(0,1fr)_auto] sm:grid-cols-[auto_minmax(0,1fr)_8rem_10rem_auto]`}
     >
       <StatusDot state={state} />
       <div className="min-w-0">
@@ -82,7 +84,13 @@ export function CommandRow({
         ) : null}
       </div>
       <div className="hidden sm:block text-xs text-zinc-500 tabular-nums">
-        <LastRun at={c.last_run_at} exitCode={c.last_exit_code} status={c.last_run_status} running={c.running} />
+        <LastRun
+          at={c.last_run_at}
+          exitCode={c.last_exit_code}
+          status={c.last_run_status}
+          reason={c.last_end_reason}
+          running={c.running}
+        />
       </div>
       <RunControls running={c.running} runId={c.run_id} onRun={onRun} onStop={onStop} onRestart={onRestart} />
     </div>

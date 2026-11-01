@@ -59,7 +59,7 @@ describe("process manager", () => {
     const { commandId, runId } = await start("true");
     expect(await waitForRunStatus(runId, "success")).toBe(true);
     // A late duplicate finalize (e.g. stop racing exit) must not overwrite the result.
-    await finalizeRun(runId, 0, commandId, null, -1, "killed");
+    await finalizeRun(runId, 0, commandId, null, null, { reason: "stopped" });
     expect((await getRunDetailsById(runId))?.status).toBe("success");
   });
 

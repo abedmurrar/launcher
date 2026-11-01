@@ -8,7 +8,7 @@ vi.hoisted(() => {
 
 import { runCommand, stopCommand } from "@/lib/actions";
 import { getRunDetailsById } from "@/lib/db/queries";
-import { reconcileStaleRuns } from "@/lib/process-manager/reconcile";
+import { reconcileStaleRuns } from "@/lib/process-manager/supervisor";
 import { runIdToPid } from "@/lib/process-manager/state";
 import { isProcessAlive } from "@/lib/process-manager/process-utils";
 import {

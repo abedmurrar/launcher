@@ -8,8 +8,9 @@ export {
 } from "./state";
 export { spawnCommand } from "./spawn";
 export { stopRun, stopByCommandId, stopByCommandIdAndWait, type StopResult } from "./stop";
-export { killGroupRun } from "./kill";
+export { killGroupRun, terminateRun } from "./kill";
+export type { EndReason } from "./types";
 export { flushAllLogs } from "./log";
 export { stopAllTailing } from "./log-tailer";
-export { reconcileStaleRuns } from "./reconcile";
+export { reconcileStaleRuns, startSupervisor, stopSupervisor, superviseOnce } from "./supervisor";
 export { processManager } from "./facade";
