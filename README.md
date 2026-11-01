@@ -254,11 +254,11 @@ All handlers that use the DB or `child_process` live under `app/api/` and use th
 
 ## Frontend (React)
 
-- **Layout:** Sidebar or tabs for Commands, Groups, and optionally “Running” (or show running state in Commands/Groups).
-- **Commands:** List (name, command truncated, cwd, last run, status), actions: Run, Stop, Restart, Edit, Delete, View logs. “Add command” form: name, command, cwd, env (key/value or text area).
-- **Groups:** List groups; create (name); edit: add/remove/reorder saved commands; Run group; show “running” and “one failed → all stopped”.
-- **Running:** Show which commands are running (e.g. via `GET /api/commands` or `GET /api/runs?status=running`, or optional SSE).
-- **Logs:** `useRunLogs(runId)` subscribes over Socket.IO, merges output into capped segments, flushes once per animation frame, and re-subscribes after reconnects. `LogPane` auto-scrolls only while you are at the bottom.
+- **Layout:** sidebar (Running / Commands / Groups with counts, New command / New group, live connection dot) → compact rows (status dot, name, command, git branch, last run, inline Run/Stop/Restart) → detail panel on the right with actions, metadata and live output. On small screens the sidebar becomes a top bar and the panel goes full-screen.
+- **URL state:** the view and selection live in the hash (`#/commands/c/12`, `#/groups/g/3`, `#/running`), so back/forward, reloads and links work.
+- **Keyboard:** `/` search, `j`/`k` (or arrows) move through rows, `Esc` close panel / clear search, `1`–`3` switch view.
+- **Logs:** `useRunLogs(runId)` subscribes over Socket.IO, merges output into capped segments, flushes once per animation frame, re-subscribes after reconnects, and can page back ("Load earlier output"). `LogPane` auto-scrolls only while you are at the bottom. Groups show one tab per member run, with a side-by-side view.
+- **Code:** `components/launcher/` (AppShell, Sidebar, rows, panels, RunLogs, useNav), action hooks in `hooks/useCommandActions.ts` / `hooks/useGroupActions.ts`.
 
 ---
 

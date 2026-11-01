@@ -40,10 +40,10 @@ export function StopAllButton() {
       type="button"
       onClick={onClick}
       disabled={busy}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-50"
+      className="inline-flex h-8 items-center gap-1.5 rounded-md bg-red-600 px-3 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
     >
       <OctagonX size={16} />
-      {busy ? "Stopping…" : `Stop all (${runningCount})`}
+      <span className="hidden sm:inline">{busy ? "Stopping…" : `Stop all (${runningCount})`}</span>
     </button>
   );
 }

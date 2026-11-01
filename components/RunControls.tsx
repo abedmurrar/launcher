@@ -1,61 +1,59 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Play, Square, RotateCcw, History } from "lucide-react";
-import type { CommandActionType } from "@/lib/ws-action-handlers/types";
-import { CommandAction } from "@/lib/ws-action-handlers/types";
+import { Play, Square, RotateCcw, Loader2 } from "lucide-react";
 
-const iconSize = 16;
+export type RunAction = "run" | "stop" | "restart";
 
 interface RunControlsProps {
-  commandId: number;
-  runId?: number;
-  lastRunId?: number;
-  pid?: number;
   running: boolean;
+  /** Current run id: a restart is confirmed when it changes. */
+  runId?: number;
+  /** Externally tracked in-flight action (e.g. group pending state). */
+  pending?: RunAction | null;
+  disabled?: boolean;
   /** Resolve to `false` when the action failed (buttons re-enable immediately). */
   onRun: () => Promise<boolean | void>;
   onStop: () => Promise<boolean | void>;
   onRestart: () => Promise<boolean | void>;
-  onLogs: (runId: number) => void;
+  size?: "sm" | "md";
 }
 
+const base =
+  "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400";
+
+/** Run / Stop / Restart with busy state that lasts until the list confirms the new state. */
 export function RunControls({
-  commandId,
-  runId,
-  pid,
   running,
+  runId,
+  pending: externalPending,
+  disabled,
   onRun,
   onStop,
   onRestart,
-  onLogs,
-  lastRunId,
+  size = "sm",
 }: RunControlsProps) {
-  /** Action whose request is in flight. */
-  const [inFlight, setInFlight] = useState<CommandActionType | null>(null);
-  /**
-   * After a successful action, stay "busy" until the broadcast list reflects it
-   * (or a short timeout), so the buttons don't flash back to the old state.
-   */
-  const [awaiting, setAwaiting] = useState<{ action: CommandActionType; prevRunId?: number } | null>(null);
+  const [inFlight, setInFlight] = useState<RunAction | null>(null);
+  const [awaiting, setAwaiting] = useState<{ action: RunAction; prevRunId?: number } | null>(null);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const awaitingDone =
     awaiting != null &&
-    ((awaiting.action === CommandAction.Run && running) ||
-      (awaiting.action === CommandAction.Stop && !running) ||
-      (awaiting.action === CommandAction.Restart && running && runId !== awaiting.prevRunId));
-  if (awaitingDone) {
-    // Adjusting state during render (React-supported) once the new state has arrived.
-    setAwaiting(null);
-  }
-  const loading = inFlight ?? (awaiting && !awaitingDone ? awaiting.action : null);
+    ((awaiting.action === "run" && running) ||
+      (awaiting.action === "stop" && !running) ||
+      (awaiting.action === "restart" && running && runId !== awaiting.prevRunId));
+  if (awaitingDone) setAwaiting(null); // adjusting state during render once confirmed
 
-  useEffect(() => () => {
-    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
-  }, []);
+  const busy = externalPending ?? inFlight ?? (awaiting && !awaitingDone ? awaiting.action : null);
 
-  const perform = async (action: CommandActionType, fn: () => Promise<boolean | void>) => {
+  useEffect(
+    () => () => {
+      if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    },
+    []
+  );
+
+  const perform = async (action: RunAction, fn: () => Promise<boolean | void>) => {
     setInFlight(action);
     let ok = false;
     try {
@@ -70,68 +68,47 @@ export function RunControls({
     settleTimerRef.current = setTimeout(() => setAwaiting(null), 3_000);
   };
 
-  const handleRun = () => perform(CommandAction.Run, onRun);
-  const handleStop = () => perform(CommandAction.Stop, onStop);
-  const handleRestart = () => perform(CommandAction.Restart, onRestart);
+  const icon = size === "sm" ? 14 : 16;
+  const pad = size === "sm" ? "h-7 px-2 text-xs" : "h-8 px-3 text-sm";
+  const spin = <Loader2 size={icon} className="animate-spin" />;
+  const isDisabled = disabled || !!busy;
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
       {running ? (
         <>
-          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono">
-            PID {pid ?? "—"}
-          </span>
           <button
             type="button"
-            onClick={handleStop}
-            disabled={!!loading}
             title="Stop"
-            className="p-1.5 rounded bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 disabled:opacity-50"
+            disabled={isDisabled}
+            onClick={() => perform("stop", onStop)}
+            className={`${base} ${pad} bg-red-500/10 text-red-700 hover:bg-red-500/20 dark:text-red-300`}
           >
-            {loading === CommandAction.Stop ? <span className="text-xs px-0.5">Stopping…</span> : <Square size={iconSize} />}
+            {busy === "stop" ? spin : <Square size={icon} />}
+            {size === "md" && (busy === "stop" ? "Stopping…" : "Stop")}
           </button>
           <button
             type="button"
-            onClick={handleRestart}
-            disabled={!!loading}
             title="Restart"
-            className="p-1.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 disabled:opacity-50"
+            disabled={isDisabled}
+            onClick={() => perform("restart", onRestart)}
+            className={`${base} ${pad} bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300`}
           >
-            {loading === CommandAction.Restart ? "…" : <RotateCcw size={iconSize} />}
+            {busy === "restart" ? spin : <RotateCcw size={icon} />}
+            {size === "md" && "Restart"}
           </button>
-          {runId != null && (
-            <button
-              type="button"
-              onClick={() => onLogs(runId)}
-              title="Logs"
-              className="p-1.5 rounded bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-zinc-600"
-            >
-              <History size={iconSize} />
-            </button>
-          )}
         </>
       ) : (
-        <>
-          <button
-            type="button"
-            onClick={handleRun}
-            disabled={!!loading}
-            title="Run"
-            className="p-1.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 disabled:opacity-50"
-          >
-            {loading === CommandAction.Run ? "…" : <Play size={iconSize} />}
-          </button>
-          {(runId ?? lastRunId) != null && (
-            <button
-              type="button"
-              onClick={() => onLogs((runId ?? lastRunId)!)}
-              title="View logs"
-              className="p-1.5 rounded bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-zinc-600"
-            >
-              <History size={iconSize} />
-            </button>
-          )}
-        </>
+        <button
+          type="button"
+          title="Run"
+          disabled={isDisabled}
+          onClick={() => perform("run", onRun)}
+          className={`${base} ${pad} bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300`}
+        >
+          {busy === "run" ? spin : <Play size={icon} />}
+          {size === "md" && "Run"}
+        </button>
       )}
     </div>
   );
