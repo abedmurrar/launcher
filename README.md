@@ -15,7 +15,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). After code changes, run `npm run dev` to verify the app and server still work.
+Open [http://localhost:9555](http://localhost:9555). After code changes, run `npm run dev` to verify the app and server still work.
 
 ---
 
@@ -27,10 +27,22 @@ Open [http://localhost:3000](http://localhost:3000). After code changes, run `np
 |------|---------|-------------|
 | Install deps | `npm install` | Install dependencies. |
 | Build | `npm run build` | Production build (Next.js + server). |
-| Run (dev) | `npm run dev` | Dev server with Socket.IO at `http://localhost:3000` (or `PORT`); uses polling then WebSocket. |
+| Run (dev) | `npm run dev` | Dev server with Socket.IO at `http://localhost:9555` (or `PORT`); uses polling then WebSocket. |
 | Run (prod) | `npm start` | Production server; requires `npm run build` first. |
 
-- **Port:** Default is `3000`. Override with `PORT=1337 npm start` (or `npm run dev`).
+- **Port:** Default is `9555`. Override with `PORT=1337 npm start` (or `npm run dev`).
+- **Bind address:** Default is `127.0.0.1` (local only). The app runs arbitrary shell commands without auth, so LAN access is an explicit opt-in: `HOST=0.0.0.0 npm start`.
+- **Tuning (optional env vars):**
+
+  | Variable | Default | Meaning |
+  |----------|---------|---------|
+  | `LAUNCHER_STOP_GRACE_MS` | `5000` | Time between SIGTERM and SIGKILL when stopping a run. |
+  | `LAUNCHER_LOG_FLUSH_MS` / `LAUNCHER_LOG_FLUSH_BYTES` | `100` / `65536` | Log output is buffered and written/broadcast in batches. |
+  | `LAUNCHER_LOG_HISTORY_BYTES` | `2097152` | Max log history sent when opening a log viewer (full log via the logs API). |
+  | `LAUNCHER_LOG_RETAIN_RUNS` | `20` | Keep logs for the newest N runs per command. |
+  | `LAUNCHER_LOG_RETAIN_DAYS` | `30` | Also drop logs older than N days (`0` = no age limit). The latest run of each command is always kept. |
+  | `LAUNCHER_LIST_DEBOUNCE_MS` | `150` | Coalesces command/group list broadcasts. |
+  | `LAUNCHER_GIT_BRANCH_TTL_MS` | `10000` | Cache TTL for the git branch shown per command. |
 - **Data:** SQLite DB and data dir are created at `./data/` under the **current working directory** when the app starts. Run the app from the project root so `data/launcher.db` lives in the repo (or set `cwd` when running as a daemon).
 
 ---
@@ -66,8 +78,8 @@ Runs as your user; no root required.
    ExecStart=/usr/bin/env npm start
    Restart=on-failure
    RestartSec=5
-   # Optional: port (default 3000)
-   Environment=PORT=3000
+   # Optional: port (default 9555)
+   Environment=PORT=9555
 
    [Install]
    WantedBy=default.target
@@ -118,7 +130,7 @@ Runs as a system-wide service (requires root to install).
    ExecStart=/usr/bin/env npm start
    Restart=on-failure
    RestartSec=5
-   Environment=PORT=3000
+   Environment=PORT=9555
 
    [Install]
    WantedBy=multi-user.target
@@ -211,8 +223,10 @@ The DB file is created at `./data/launcher.db` (or as configured); `data/` is cr
 | PUT | `/api/groups/[id]/commands` | Set members (body: `commandIds[]`). |
 | DELETE | `/api/groups/[id]` | Delete group. |
 | POST | `/api/groups/[id]/run` | Run all member commands in parallel; create group_run and runs; on first failure, kill others and set status. |
-| GET | `/api/runs/[runId]/logs` | Fetch persisted log chunks (paginated or full). |
-| GET | `/api/runs/[runId]/logs/stream` | SSE stream for that run; pipe stdout/stderr to SSE and append to `log_chunks`; optional “run finished” event. |
+| GET | `/api/runs/[runId]/logs` | Fetch persisted log chunks: full, or `?before=<chunkId>&limit=<n>` to page backwards. |
+| DELETE | `/api/runs/[runId]/logs` | Clear a run's log chunks. |
+
+Live logs are streamed over Socket.IO (`subscribe_logs` → `log_history` tail, then `log_batch` events, then `log_finished`).
 
 All handlers that use the DB or `child_process` live under `app/api/` and use the shared DB helper and process manager module.
 
@@ -223,7 +237,10 @@ All handlers that use the DB or `child_process` live under `app/api/` and use th
 - **Spawn:** `spawn(command, args, { cwd, env: { ...process.env, ...commandEnv } })`. The `command` is parsed (e.g. shell for pipes/redirects); see “Open decisions” below.
 - **PID map:** Store `run_id`, `command_id`, `ChildProcess`; on exit, update `runs` (finished_at, exit_code, status) and remove from map.
 - **Group run:** For each command in the group, spawn and record run_id; on any non-zero exit, kill remaining processes for that group run and update all runs and group_run status.
-- **Logging:** On each stdout/stderr `data` event, (1) append a row to `log_chunks`, (2) if there’s an active SSE writer for that run_id, write the chunk. Use a map `runId → writer[]` so multiple clients can subscribe to the same run.
+- **Logging:** stdout/stderr are buffered per run and flushed every ~100 ms (or 64 KB) as one DB transaction plus one `log_batch` Socket.IO emit to the `run:<id>` room. Batches carry the last chunk id so clients de-duplicate against history.
+- **Stopping:** SIGTERM to the process group, then SIGKILL after `LAUNCHER_STOP_GRACE_MS`; the result reports `forced: true` when SIGKILL was needed.
+- **Concurrency:** partial unique indexes allow at most one running run per command and per group; actions on the same command/group are serialized.
+- **Shared state:** process/socket/DB state lives on `globalThis` (`lib/global-singleton.ts`) so the custom server and Next route handlers share one instance.
 
 ---
 
@@ -233,7 +250,7 @@ All handlers that use the DB or `child_process` live under `app/api/` and use th
 - **Commands:** List (name, command truncated, cwd, last run, status), actions: Run, Stop, Restart, Edit, Delete, View logs. “Add command” form: name, command, cwd, env (key/value or text area).
 - **Groups:** List groups; create (name); edit: add/remove/reorder saved commands; Run group; show “running” and “one failed → all stopped”.
 - **Running:** Show which commands are running (e.g. via `GET /api/commands` or `GET /api/runs?status=running`, or optional SSE).
-- **Logs:** For a run, open SSE to `GET /api/runs/[runId]/logs/stream` and append to a log viewer; when finished, allow viewing from DB via `GET /api/runs/[runId]/logs`.
+- **Logs:** `useRunLogs(runId)` subscribes over Socket.IO, merges output into capped segments, flushes once per animation frame, and re-subscribes after reconnects. `LogPane` auto-scrolls only while you are at the bottom.
 
 ---
 
@@ -249,13 +266,11 @@ All handlers that use the DB or `child_process` live under `app/api/` and use th
 | **zod** | ^4.3.6 | Request body validation in Route Handlers: `z.object({ ... }).parse(await request.json())`. [zod](https://zod.dev). |
 | **tailwindcss** / **@tailwindcss/postcss** | ^4.2.0 | Styling. [Tailwind v4](https://tailwindcss.com/docs). |
 
-SSE uses native `TransformStream` and `Response` with `text/event-stream` (no extra package).
-
 ---
 
 ## Security and safety (local-only)
 
-- Intended for **local use only** (e.g. `localhost`). No auth in scope by default.
+- Intended for **local use only**. The server binds to `127.0.0.1` by default; `HOST=0.0.0.0` exposes it (no auth).
 - Validate `cwd` to prevent escaping (e.g. resolve to real path and ensure it’s under an allowed base).
 - Sanitize or restrict `command` as needed; env vars from the DB are applied as-is.
 
