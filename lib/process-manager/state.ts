@@ -1,4 +1,4 @@
-import type { RunRecord } from "./types";
+import type { EndReason, RunRecord } from "./types";
 import { getRunningRunIdByCommandId } from "@/lib/db/queries";
 import { globalSingleton } from "@/lib/global-singleton";
 
@@ -30,7 +30,27 @@ const state = globalSingleton("process-manager-state", () => ({
   groupRunIdToPids: new Map<number, number[]>(),
   runStateObservers: new Set<RunStateObserver>(),
   logEventsObservers: new Set<LogEventsObserver>(),
+  /** Why the launcher is stopping a run (consumed when the run is finalized). */
+  stopReasons: new Map<number, EndReason>(),
 }));
+
+/** Record that the launcher itself is stopping this run, and why. */
+export function markStopReason(runId: number, reason: EndReason): void {
+  if (!state.stopReasons.has(runId)) state.stopReasons.set(runId, reason);
+}
+
+export function consumeStopReason(runId: number): EndReason | undefined {
+  const reason = state.stopReasons.get(runId);
+  state.stopReasons.delete(runId);
+  return reason;
+}
+
+/** The run's process is a child of this launcher (we get its exit event). */
+export function isOwnedRun(runId: number): boolean {
+  const pid = state.runIdToPid.get(runId);
+  const record = pid !== undefined ? state.pidMap.get(pid) : undefined;
+  return !!record?.childProcess && record.runId === runId;
+}
 
 export const pidMap = state.pidMap;
 export const runIdToPid = state.runIdToPid;

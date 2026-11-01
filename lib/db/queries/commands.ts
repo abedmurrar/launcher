@@ -41,7 +41,7 @@ export async function updateCommandEnv(env: string, id: number): Promise<void> {
   await db("commands").where("id", id).update({ env, updated_at: db.raw("datetime('now')") });
 }
 
-export async function updateCommandLastRun(runId: number, exitCode: number, commandId: number): Promise<void> {
+export async function updateCommandLastRun(runId: number, exitCode: number | null, commandId: number): Promise<void> {
   const db = await getDb();
   await db("commands")
     .where("id", commandId)
@@ -79,6 +79,7 @@ export interface CommandListRow {
   /** Most recent run id and status, if any. */
   last_run_id: number | null;
   last_run_status: string | null;
+  last_end_reason: string | null;
 }
 
 /** Commands with their running run and latest run, in one query (most recently run first). */
@@ -89,7 +90,8 @@ export async function listCommandsForList(): Promise<CommandListRow[]> {
             c.last_run_at, c.last_exit_code,
             r.id AS run_id, r.pid AS run_pid,
             (SELECT lr.id FROM runs lr WHERE lr.command_id = c.id ORDER BY lr.id DESC LIMIT 1) AS last_run_id,
-            (SELECT lr.status FROM runs lr WHERE lr.command_id = c.id ORDER BY lr.id DESC LIMIT 1) AS last_run_status
+            (SELECT lr.status FROM runs lr WHERE lr.command_id = c.id ORDER BY lr.id DESC LIMIT 1) AS last_run_status,
+            (SELECT lr.end_reason FROM runs lr WHERE lr.command_id = c.id ORDER BY lr.id DESC LIMIT 1) AS last_end_reason
      FROM commands c
      LEFT JOIN runs r ON r.command_id = c.id AND r.status = 'running'
      ORDER BY c.last_run_at IS NOT NULL DESC, c.last_run_at DESC`

@@ -46,7 +46,18 @@ export async function updateRunStatusFailed(runId: number): Promise<void> {
   const db = await getDb();
   await db("runs")
     .where("id", runId)
-    .update({ status: "failed", finished_at: db.raw("datetime('now')"), exit_code: -1 });
+    .update({ status: "failed", finished_at: db.raw("datetime('now')"), exit_code: null, end_reason: "spawn_failed" });
+}
+
+/** Record the identity of a run's process: (pid, start time, boot id). */
+export async function updateRunProcess(
+  runId: number,
+  pid: number,
+  pidStartTime: string | null,
+  bootId: string
+): Promise<void> {
+  const db = await getDb();
+  await db("runs").where("id", runId).update({ pid, pid_start_time: pidStartTime, boot_id: bootId });
 }
 
 export async function updateRunPid(pid: number, runId: number): Promise<void> {
@@ -54,11 +65,17 @@ export async function updateRunPid(pid: number, runId: number): Promise<void> {
   await db("runs").where("id", runId).update({ pid });
 }
 
-export async function updateRunFinished(runId: number, exitCode: number, status: string): Promise<void> {
+/** Mark a run finished. `exitCode` is null when unknown (e.g. it ended while the launcher was down). */
+export async function updateRunFinished(
+  runId: number,
+  exitCode: number | null,
+  status: string,
+  endReason: string | null = null
+): Promise<void> {
   const db = await getDb();
   await db("runs")
     .where("id", runId)
-    .update({ finished_at: db.raw("datetime('now')"), exit_code: exitCode, status });
+    .update({ finished_at: db.raw("datetime('now')"), exit_code: exitCode, status, end_reason: endReason });
 }
 
 export async function getPidByRunId(runId: number) {
@@ -75,7 +92,7 @@ export async function getRunByIdFull(runId: number) {
 export async function getRunDetailsById(runId: number) {
   const db = await getDb();
   return db("runs")
-    .select("id", "pid", "command_id", "group_run_id", "status")
+    .select("id", "pid", "command_id", "group_run_id", "status", "pid_start_time", "boot_id", "started_at")
     .where("id", runId)
     .first();
 }
@@ -94,11 +111,17 @@ export async function getLastRunByCommandIdFull(commandId: number) {
     .first();
 }
 
-export async function updateRunsKilledByGroupRunId(groupRunId: number): Promise<void> {
+export async function updateRunsKilledByGroupRunId(groupRunId: number, endReason: string = "stopped"): Promise<void> {
   const db = await getDb();
   await db("runs")
     .where({ group_run_id: groupRunId, status: "running" })
-    .update({ finished_at: db.raw("datetime('now')"), status: "killed" });
+    .update({ finished_at: db.raw("datetime('now')"), status: "killed", exit_code: null, end_reason: endReason });
+}
+
+export async function getRunningRunIdsByGroupRunId(groupRunId: number): Promise<number[]> {
+  const db = await getDb();
+  const rows = await db("runs").select("id").where({ group_run_id: groupRunId, status: "running" });
+  return rows.map((r) => r.id as number);
 }
 
 export async function countRunningRunsByGroupRunId(groupRunId: number): Promise<number> {
@@ -119,12 +142,24 @@ export interface RunningRunRow {
   started_at: string;
   stdout_offset: number;
   stderr_offset: number;
+  boot_id: string | null;
+  pid_start_time: string | null;
 }
 
 export async function getAllRunningRuns(): Promise<RunningRunRow[]> {
   const db = await getDb();
   const rows = await db("runs")
-    .select("id", "pid", "command_id", "group_run_id", "started_at", "stdout_offset", "stderr_offset")
+    .select(
+      "id",
+      "pid",
+      "command_id",
+      "group_run_id",
+      "started_at",
+      "stdout_offset",
+      "stderr_offset",
+      "boot_id",
+      "pid_start_time"
+    )
     .where("status", "running");
   return rows as RunningRunRow[];
 }

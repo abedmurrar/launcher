@@ -22,6 +22,9 @@ export interface RunRow {
   /** Bytes of the run's stdout/stderr log files already ingested into log_chunks. */
   stdout_offset: number;
   stderr_offset: number;
+  boot_id: string | null;
+  pid_start_time: string | null;
+  end_reason: string | null;
 }
 
 export interface LogChunkRow {

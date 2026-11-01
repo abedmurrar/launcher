@@ -1,4 +1,5 @@
 import { globalSingleton } from "@/lib/global-singleton";
+import { RUN_MARKER, runMarkerValue } from "./identity";
 
 /**
  * Environment for managed commands.
@@ -91,7 +92,12 @@ export function getChildBaseEnv(): Record<string, string> {
   return { ...(snapshot.env ?? sanitizeEnv(process.env)) };
 }
 
-/** Base environment + the command's own env (command settings win). */
-export function buildChildEnv(commandEnv: Record<string, string>): Record<string, string> {
-  return { ...getChildBaseEnv(), ...commandEnv };
+/**
+ * Base environment + the command's own env (command settings win) + the run marker, which every
+ * descendant inherits so the launcher can find all of a run's processes (see identity.ts).
+ */
+export function buildChildEnv(commandEnv: Record<string, string>, runId?: number): Record<string, string> {
+  const env = { ...getChildBaseEnv(), ...commandEnv };
+  if (runId !== undefined) env[RUN_MARKER] = runMarkerValue(runId);
+  return env;
 }

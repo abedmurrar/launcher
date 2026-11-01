@@ -12,6 +12,7 @@ export interface CommandListItem {
   run_id?: number;
   last_run_id?: number;
   last_run_status?: string;
+  last_end_reason?: string;
   pid?: number;
   /** Git branch at cwd, if the directory is a git repo */
   git_branch?: string | null;

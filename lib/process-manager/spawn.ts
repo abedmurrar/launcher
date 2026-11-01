@@ -2,10 +2,13 @@ import { spawn as nodeSpawn, type ChildProcess } from "child_process";
 import { once } from "events";
 import path from "path";
 import fs from "fs";
-import { updateRunPid } from "@/lib/db/queries";
+import { updateRunProcess } from "@/lib/db/queries";
 import { pidMap, runIdToPid, groupRunIdToPids, notifyRunStateChange } from "./state";
 import { emitLogChunk } from "./log";
-import { clearRunFromMaps, finalizeRun, type RunFinalStatus } from "./finalize-run";
+import { clearRunFromMaps, finalizeRun } from "./finalize-run";
+import { findRunProcesses, getBootId, getProcessStartTime } from "./identity";
+import { terminateRun } from "./kill";
+import { isProcessGroupAlive } from "./process-utils";
 import { fileStdioSupported, openRunFiles, removeRunFiles, type RunFiles } from "./run-files";
 import { startTailing } from "./log-tailer";
 import { buildChildEnv } from "./child-env";
@@ -41,7 +44,7 @@ export async function spawnCommand(
 ): Promise<number> {
   const resolved = resolveCwd(cwd);
   // The user's environment without the launcher's own NODE_ENV/PORT/npm/PM2/Next state.
-  const envWithBase = buildChildEnv(env);
+  const envWithBase = buildChildEnv(env, runId);
 
   // POSIX: output goes to files the launcher tails, so the process survives launcher restarts.
   let files: RunFiles | null = null;
@@ -86,6 +89,8 @@ export async function spawnCommand(
     throw err;
   }
 
+  // Identity of the process: (pid, start time, boot). A bare pid can be reused later.
+  const pidStartTime = getProcessStartTime(pid);
   pidMap.set(pid, { childProcess: child, commandId, runId, groupRunId });
   runIdToPid.set(runId, pid);
   if (groupRunId !== null) {
@@ -110,7 +115,7 @@ export async function spawnCommand(
   let closeTimer: ReturnType<typeof setTimeout> | null = null;
   let exitInfo: { code: number | null; signal: NodeJS.Signals | null } | null = null;
 
-  const finish = (code: number | null, signal: NodeJS.Signals | null, forceStatus?: RunFinalStatus) => {
+  const finish = (code: number | null, signal: NodeJS.Signals | null, failed = false) => {
     if (finished) return;
     finished = true;
     if (closeTimer !== null) clearTimeout(closeTimer);
@@ -118,22 +123,29 @@ export async function spawnCommand(
     const record = clearRunFromMaps(runId, pid);
     const resolvedCommandId = record?.commandId ?? commandId;
     const resolvedGroupRunId = record?.groupRunId ?? groupRunId;
-    const status: RunFinalStatus =
-      forceStatus ?? (signal != null ? "killed" : code === 0 ? "success" : "failed");
-    const exitCode = code ?? -1;
 
-    void finalizeRun(runId, pid, resolvedCommandId, resolvedGroupRunId, exitCode, status, {
-      clearMaps: false,
-      signal,
-      code,
-    }).catch((err) => console.error("[run] finalize failed:", err));
+    void (async () => {
+      // The main process is gone: stop anything it left running (background children holding
+      // ports/CPU). The group id is still valid while members exist; matches are limited to
+      // processes started after the leader.
+      const leftovers =
+        process.platform === "linux"
+          ? findRunProcesses(runId, pid, pidStartTime).length > 0
+          : isProcessGroupAlive(pid);
+      if (leftovers) await terminateRun(runId, pid);
+      await finalizeRun(runId, pid, resolvedCommandId, resolvedGroupRunId, code, {
+        clearMaps: false,
+        signal,
+        reason: failed ? "failed" : undefined,
+      });
+    })().catch((err) => console.error("[run] finalize failed:", err));
   };
 
   child.on("error", (err) => {
     console.error(`[run ${runId}] process error:`, err.message);
     emitLogChunk(runId, `[launcher] process error: ${err.message}\n`, "stderr");
     if (child.exitCode !== null || child.signalCode !== null) {
-      finish(child.exitCode, child.signalCode, "failed");
+      finish(child.exitCode, child.signalCode, true);
     }
   });
 
@@ -148,9 +160,9 @@ export async function spawnCommand(
   });
 
   try {
-    await updateRunPid(pid, runId);
+    await updateRunProcess(runId, pid, pidStartTime, getBootId());
   } catch (err) {
-    console.error("[run] updateRunPid failed:", err);
+    console.error("[run] updateRunProcess failed:", err);
   }
   notifyRunStateChange();
 
