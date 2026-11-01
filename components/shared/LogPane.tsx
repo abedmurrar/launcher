@@ -1,15 +1,88 @@
 "use client";
 
-import { memo, useLayoutEffect, useRef } from "react";
+import { memo, useLayoutEffect, useMemo, useRef, type CSSProperties } from "react";
 import type { LogSegment } from "@/hooks/useRunLogs";
+import { ansiColorCss, parseAnsi, styleKey, type AnsiSpan, type AnsiStyle } from "@/lib/ansi";
 
-const Segment = memo(function Segment({ segment }: { segment: LogSegment }) {
+function spanStyle(style: AnsiStyle): CSSProperties {
+  const css: CSSProperties = {};
+  let fg = style.fg !== undefined ? ansiColorCss(style.fg) : undefined;
+  let bg = style.bg !== undefined ? ansiColorCss(style.bg) : undefined;
+  if (style.inverse) {
+    // Swap; defaults are the log background and the normal text color.
+    [fg, bg] = [bg ?? "var(--log-bg)", fg ?? "var(--foreground)"];
+  }
+  if (fg) css.color = fg;
+  if (bg) css.backgroundColor = bg;
+  if (style.bold) css.fontWeight = 600;
+  if (style.dim) css.opacity = 0.6;
+  if (style.italic) css.fontStyle = "italic";
+  const decorations = [style.underline && "underline", style.strike && "line-through"].filter(Boolean);
+  if (decorations.length) css.textDecoration = decorations.join(" ");
+  return css;
+}
+
+const Segment = memo(function Segment({
+  streamType,
+  spans,
+  text,
+}: {
+  streamType: LogSegment["streamType"];
+  spans: AnsiSpan[];
+  text: string;
+}) {
+  // Segments that end at a line boundary render as their own block, so appending output only
+  // re-lays out the last block instead of the whole log; off-screen blocks skip layout/paint.
+  const isBlock = text.endsWith("\n");
+  let style: CSSProperties | undefined;
+  if (isBlock) {
+    let lines = 0;
+    for (let i = text.indexOf("\n"); i !== -1; i = text.indexOf("\n", i + 1)) lines++;
+    style = { display: "block", contentVisibility: "auto", containIntrinsicSize: `auto ${Math.max(1, lines) * 1.65}em` };
+  }
   return (
-    <span className={segment.streamType === "stderr" ? "text-red-600 dark:text-red-400" : undefined}>
-      {segment.text}
+    <span className={streamType === "stderr" ? "text-red-600 dark:text-red-400" : undefined} style={style}>
+      {spans.map((span, i) =>
+        span.style ? (
+          <span key={i} style={spanStyle(span.style)}>
+            {span.text}
+          </span>
+        ) : (
+          span.text
+        )
+      )}
     </span>
   );
 });
+
+interface ParsedSegment {
+  inKey: string;
+  spans: AnsiSpan[];
+  end: AnsiStyle;
+}
+
+/** Parse results per segment object (segments are immutable; changed ones are new objects). */
+const parseCache = new WeakMap<LogSegment, ParsedSegment>();
+
+/** Parse ANSI colors segment by segment, carrying the style across segment boundaries. */
+function useParsedSegments(segments: LogSegment[]) {
+  return useMemo(() => {
+    const out: { segment: LogSegment; spans: AnsiSpan[] }[] = [];
+    let state: AnsiStyle = {};
+    for (const segment of segments) {
+      const inKey = styleKey(state);
+      let parsed = parseCache.get(segment);
+      if (!parsed || parsed.inKey !== inKey) {
+        const result = parseAnsi(segment.text, state);
+        parsed = { inKey, spans: result.spans, end: result.end };
+        parseCache.set(segment, parsed);
+      }
+      state = parsed.end;
+      out.push({ segment, spans: parsed.spans });
+    }
+    return out;
+  }, [segments]);
+}
 
 interface LogPaneProps {
   segments: LogSegment[];
@@ -42,6 +115,7 @@ export function LogPane({
 }: LogPaneProps) {
   const preRef = useRef<HTMLPreElement>(null);
   const stickRef = useRef(true);
+  const parsed = useParsedSegments(segments);
   const prevFirstIdRef = useRef<number | undefined>(undefined);
   const prevHeightRef = useRef(0);
 
@@ -98,8 +172,8 @@ export function LogPane({
         </span>
       )}
       {!loaded && segments.length === 0 && <span className="text-zinc-500">Loading…</span>}
-      {segments.map((s) => (
-        <Segment key={s.id} segment={s} />
+      {parsed.map(({ segment, spans }) => (
+        <Segment key={segment.id} streamType={segment.streamType} spans={spans} text={segment.text} />
       ))}
     </pre>
   );
