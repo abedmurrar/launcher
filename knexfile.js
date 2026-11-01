@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS config loaded by the knex CLI */
 const path = require("path");
 
-// Use cwd so the DB path is consistent regardless of where knexfile is required from (e.g. Next bundling)
-const DATA_DIR = path.join(process.cwd(), "data");
+// Use cwd so the DB path is consistent regardless of where knexfile is required from (e.g. Next bundling).
+// LAUNCHER_DATA_DIR overrides it (tests, second instances).
+const DATA_DIR = process.env.LAUNCHER_DATA_DIR
+  ? path.resolve(process.env.LAUNCHER_DATA_DIR)
+  : path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "launcher.db");
 
 /**
@@ -36,4 +39,5 @@ const base = {
 module.exports = {
   development: base,
   production: base,
+  test: base,
 };
