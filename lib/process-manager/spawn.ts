@@ -8,6 +8,7 @@ import { emitLogChunk } from "./log";
 import { clearRunFromMaps, finalizeRun, type RunFinalStatus } from "./finalize-run";
 import { fileStdioSupported, openRunFiles, removeRunFiles, type RunFiles } from "./run-files";
 import { startTailing } from "./log-tailer";
+import { buildChildEnv } from "./child-env";
 
 /** After "exit", how long to wait for stdio to drain ("close") before finalizing anyway. */
 const CLOSE_AFTER_EXIT_MS = 2_000;
@@ -39,7 +40,8 @@ export async function spawnCommand(
   groupRunId: number | null
 ): Promise<number> {
   const resolved = resolveCwd(cwd);
-  const envWithBase = { ...process.env, ...env };
+  // The user's environment without the launcher's own NODE_ENV/PORT/npm/PM2/Next state.
+  const envWithBase = buildChildEnv(env);
 
   // POSIX: output goes to files the launcher tails, so the process survives launcher restarts.
   let files: RunFiles | null = null;
@@ -56,7 +58,8 @@ export async function spawnCommand(
     child = nodeSpawn(command, {
       shell: true,
       cwd: resolved.cwd,
-      env: envWithBase,
+      // Next's typings require NODE_ENV on ProcessEnv; it is deliberately absent here.
+      env: envWithBase as unknown as NodeJS.ProcessEnv,
       detached: process.platform !== "win32",
       // Pipe fallback: stdin stays an open pipe (as before) since some tools exit on stdin EOF.
       stdio: files?.stdio ?? ["pipe", "pipe", "pipe"],
