@@ -1,8 +1,9 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api";
-import { useWs } from "@/context/ws";
+import { useRunLogs } from "@/hooks/useRunLogs";
+import { LogPane } from "@/components/shared/LogPane";
 
 const MIN_PANEL_PCT = 8;
 const RESIZE_HANDLE_WIDTH = 6;
@@ -13,50 +14,19 @@ interface LogStreamPanelProps {
 }
 
 function LogStreamPanel({ runId, title }: LogStreamPanelProps) {
-  const [logs, setLogs] = useState<{ streamType: "stdout" | "stderr"; data: string }[]>([]);
-  const preRef = useRef<HTMLPreElement>(null);
-  const { subscribeToLogs, unsubscribeFromLogs } = useWs();
-
-  useEffect(() => {
-    subscribeToLogs(runId, {
-      onHistory: (chunks) => {
-        setLogs(
-          chunks.map((c) => ({
-            streamType: c.stream_type as "stdout" | "stderr",
-            data: c.content,
-          }))
-        );
-      },
-      onChunk: (streamType, data) => {
-        setLogs((prev) => [...prev, { streamType, data }]);
-      },
-      onFinished: () => {},
-    });
-    return () => unsubscribeFromLogs(runId);
-  }, [runId, subscribeToLogs, unsubscribeFromLogs]);
-
-  useEffect(() => {
-    if (preRef.current) preRef.current.scrollTop = preRef.current.scrollHeight;
-  }, [logs]);
+  const { segments, truncated, live, loaded } = useRunLogs(runId);
 
   return (
     <div className="flex flex-col rounded-lg border border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800/80 overflow-hidden min-h-0 h-full">
       <div className="px-3 py-1.5 border-b border-zinc-300 dark:border-zinc-600 font-mono text-xs text-zinc-600 dark:text-zinc-400 truncate shrink-0">
-        {title}
+        {title} {loaded && live && <span className="text-emerald-600 dark:text-emerald-400">(live)</span>}
       </div>
-      <pre
-        ref={preRef}
-        className="flex-1 overflow-auto p-3 text-xs font-mono whitespace-pre-wrap break-all text-zinc-800 dark:text-zinc-200 min-h-[120px]"
-      >
-        {logs.map((entry, i) => (
-          <span
-            key={i}
-            className={entry.streamType === "stderr" ? "text-red-600 dark:text-red-400" : ""}
-          >
-            {entry.data}
-          </span>
-        ))}
-      </pre>
+      <LogPane
+        segments={segments}
+        truncated={truncated}
+        loaded={loaded}
+        className="flex-1 p-3 text-xs min-h-[120px]"
+      />
     </div>
   );
 }
@@ -73,15 +43,20 @@ interface GroupRunRunsResponse {
 
 /** Returns flex-grow weights (positive numbers) and a resize function. */
 function useEqualWidths(count: number): [number[], (index: number, deltaPct: number) => void] {
-  const [widths, setWidths] = useState<number[]>(() =>
-    count > 0 ? Array.from({ length: count }, () => 1) : []
+  const [state, setState] = useState<{ count: number; widths: number[] }>(() => ({
+    count,
+    widths: Array.from({ length: count }, () => 1),
+  }));
+  if (state.count !== count) {
+    // Reset to equal widths when the panel count changes (adjusting state during render).
+    setState({ count, widths: Array.from({ length: count }, () => 1) });
+  }
+  const widths = state.widths;
+  const setWidths = useCallback(
+    (update: (prev: number[]) => number[]) =>
+      setState((prev) => ({ ...prev, widths: update(prev.widths) })),
+    []
   );
-
-  useEffect(() => {
-    if (count > 0 && widths.length !== count) {
-      setWidths(Array.from({ length: count }, () => 1));
-    }
-  }, [count]);
 
   const resize = useCallback((index: number, deltaPct: number) => {
     setWidths((prev) => {
@@ -89,15 +64,15 @@ function useEqualWidths(count: number): [number[], (index: number, deltaPct: num
       const total = prev.reduce((a, b) => a + b, 0);
       const deltaRatio = (deltaPct / 100) * total;
       const next = [...prev];
-      let left = next[index] + deltaRatio;
-      let right = next[index + 1] - deltaRatio;
+      const left = next[index] + deltaRatio;
+      const right = next[index + 1] - deltaRatio;
       const minRatio = (MIN_PANEL_PCT / 100) * total;
       if (left < minRatio || right < minRatio) return prev;
       next[index] = left;
       next[index + 1] = right;
       return next;
     });
-  }, []);
+  }, [setWidths]);
 
   return [widths, resize];
 }
@@ -109,7 +84,9 @@ function ResizeHandle({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onDragRef = useRef(onDrag);
-  onDragRef.current = onDrag;
+  useLayoutEffect(() => {
+    onDragRef.current = onDrag;
+  });
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

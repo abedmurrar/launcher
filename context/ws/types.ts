@@ -33,9 +33,25 @@ export interface LogChunk {
   content: string;
 }
 
+export interface LiveLogChunk {
+  streamType: "stdout" | "stderr";
+  data: string;
+}
+
+export interface LogHistoryMeta {
+  /** Older output exists that was not sent (only the tail is sent). */
+  truncated: boolean;
+  /** DB id of the newest chunk in the history (0 if none). */
+  lastId: number;
+  /** Whether the run is still running. */
+  live: boolean;
+}
+
 export interface LogCallbacks {
-  onHistory?: (chunks: LogChunk[]) => void;
-  onChunk: (streamType: "stdout" | "stderr", data: string) => void;
+  /** Persisted tail of the log; sent on every (re)subscribe and replaces prior content. */
+  onHistory?: (chunks: LogChunk[], meta: LogHistoryMeta) => void;
+  /** Live output. `lastId` is the DB id of the batch's last chunk (undefined if it wasn't persisted). */
+  onBatch: (chunks: LiveLogChunk[], lastId: number | undefined) => void;
   onFinished: () => void;
 }
 
@@ -43,6 +59,7 @@ export interface ActionResult {
   success: boolean;
   data?: unknown;
   error?: string;
+  code?: number;
 }
 
 export interface WsContextValue {
@@ -56,13 +73,16 @@ export interface WsContextValue {
   unsubscribeFromLogs: (runId: number) => void;
 }
 
-export interface IncomingMessage {
-  type: string;
-  data?: unknown;
-  runId?: number;
-  streamType?: "stdout" | "stderr";
-  requestId?: string;
-  success?: boolean;
-  error?: string;
-  chunks?: LogChunk[];
-}
+export type IncomingMessage =
+  | { type: "commands"; data: unknown }
+  | { type: "groups"; data: unknown }
+  | {
+      type: "log_history";
+      runId?: number;
+      chunks?: LogChunk[];
+      truncated?: boolean;
+      lastId?: number;
+      live?: boolean;
+    }
+  | { type: "log_batch"; runId?: number; chunks?: LiveLogChunk[]; lastId?: number }
+  | { type: "log_finished"; runId?: number };
