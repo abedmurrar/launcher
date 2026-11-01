@@ -81,3 +81,25 @@ export function ok<T>(result: { success: true; data?: T } | { success: false; er
   if (!result.success) throw new Error(`expected success, got: ${result.error}`);
   return result.data as T;
 }
+
+/**
+ * Simulate the launcher process dying without touching the managed processes:
+ * drop all in-memory tracking (as a fresh process would have) but leave children running.
+ */
+export async function simulateLauncherCrash(): Promise<void> {
+  const { stopAllTailing } = await import("@/lib/process-manager/log-tailer");
+  const { pidMap, groupRunIdToPids } = await import("@/lib/process-manager/state");
+  await stopAllTailing();
+  for (const record of pidMap.values()) {
+    record.childProcess?.removeAllListeners();
+    record.childProcess?.unref();
+  }
+  pidMap.clear();
+  runIdToPid.clear();
+  groupRunIdToPids.clear();
+  const g = globalThis as Record<string, unknown>;
+  const watchers = g["__launcher_adopted-watchers"] as Map<number, ReturnType<typeof setInterval>> | undefined;
+  watchers?.forEach((t) => clearInterval(t));
+  watchers?.clear();
+  (g["__launcher_finalized-runs"] as Set<number> | undefined)?.clear();
+}

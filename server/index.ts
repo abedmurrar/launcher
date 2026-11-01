@@ -2,7 +2,7 @@ import http from "http";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
 import { getDb, closeDb } from "../lib/db/connection";
-import { reconcileStaleRuns, flushAllLogs } from "../lib/process-manager";
+import { reconcileStaleRuns, flushAllLogs, stopAllTailing } from "../lib/process-manager";
 import { init } from "../lib/ws-broadcast";
 import { startLogRetention } from "../lib/log-retention";
 import { handleSocketConnection } from "./ws-handler";
@@ -53,6 +53,7 @@ async function main(): Promise<void> {
     try {
       io.close();
       server.close();
+      await stopAllTailing();
       await flushAllLogs();
       await closeDb();
     } catch (err) {

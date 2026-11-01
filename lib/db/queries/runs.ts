@@ -117,12 +117,14 @@ export interface RunningRunRow {
   command_id: number;
   group_run_id: number | null;
   started_at: string;
+  stdout_offset: number;
+  stderr_offset: number;
 }
 
 export async function getAllRunningRuns(): Promise<RunningRunRow[]> {
   const db = await getDb();
   const rows = await db("runs")
-    .select("id", "pid", "command_id", "group_run_id", "started_at")
+    .select("id", "pid", "command_id", "group_run_id", "started_at", "stdout_offset", "stderr_offset")
     .where("status", "running");
   return rows as RunningRunRow[];
 }
@@ -142,4 +144,10 @@ export async function getRunsByGroupRunId(groupRunId: number): Promise<{ runId: 
     .select("runs.id as runId", "commands.name as commandName")
     .orderBy("runs.started_at", "asc");
   return rows as { runId: number; commandName: string }[];
+}
+
+export async function getRunLogOffsets(runId: number): Promise<{ stdout: number; stderr: number }> {
+  const db = await getDb();
+  const row = await db("runs").select("stdout_offset", "stderr_offset").where("id", runId).first();
+  return { stdout: row?.stdout_offset ?? 0, stderr: row?.stderr_offset ?? 0 };
 }

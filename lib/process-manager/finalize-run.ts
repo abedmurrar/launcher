@@ -10,6 +10,8 @@ import { pidMap, runIdToPid, groupRunIdToPids, notifyRunStateChange, notifyLogFi
 import { killGroupRun } from "./kill";
 import { finishRunLog } from "./log";
 import { stopWatcher } from "./adopted-watchers";
+import { stopTailing } from "./log-tailer";
+import { removeRunFiles } from "./run-files";
 
 export type RunFinalStatus = "success" | "failed" | "killed";
 
@@ -55,6 +57,8 @@ export async function finalizeRun(
   }
 
   try {
+    // Ingest everything the process wrote before marking the run finished.
+    await stopTailing(runId, { drain: true });
     await finishRunLog(runId);
     await updateRunFinished(runId, exitCode, status);
     await updateCommandLastRun(runId, exitCode, commandId);
@@ -72,6 +76,7 @@ export async function finalizeRun(
         await updateGroupRunFinishedSuccess(groupRunId);
       }
     }
+    removeRunFiles(runId);
   } finally {
     notifyLogFinished(runId);
     notifyRunStateChange();
