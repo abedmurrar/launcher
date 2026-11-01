@@ -5,26 +5,21 @@ import { useWs } from "@/context/ws";
 import { useToast } from "@/components/shared/Toast";
 import { GroupAction } from "@/lib/ws-action-handlers/types";
 
-/**
- * Custom hook: encapsulates group list state and action handlers
- * (Hooks pattern – reusable stateful logic; Container uses this and passes to Presentational).
- */
-type GroupRunAction = "run" | "stop" | "restart";
+export type GroupRunAction = "run" | "stop" | "restart";
 
-export function useGroupList() {
-  const { groups, commands, initialLoadDone, connectionError, sendAction } = useWs();
+/**
+ * Group actions with toast feedback, plus per-group pending state that stays set until the
+ * broadcast list reflects the change (so buttons don't flash back).
+ */
+export function useGroupActions() {
+  const { groups, sendAction } = useWs();
   const { toast, confirm } = useToast();
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
   /** In-flight run/stop/restart per group (other groups stay usable). */
   const [pending, setPending] = useState<Record<number, GroupRunAction>>({});
   /** After success, wait for the broadcast to reflect the change before re-enabling. */
   const awaitingRef = useRef(
     new Map<number, { action: GroupRunAction; prevRunId?: number; timer: ReturnType<typeof setTimeout> }>()
   );
-  const [logGroupRunId, setLogGroupRunId] = useState<number | null>(null);
-
-  const commandsForSelect = commands.map((c) => ({ id: c.id, name: c.name }));
 
   const clearPending = useCallback((groupId: number) => {
     const entry = awaitingRef.current.get(groupId);
@@ -79,99 +74,64 @@ export function useGroupList() {
     [groups, sendAction, toast, clearPending, groupName]
   );
 
-  const handleCreate = useCallback(
-    async (name: string) => {
+  /** Resolves to the new group's id, or null on failure. */
+  const create = useCallback(
+    async (name: string): Promise<number | null> => {
       const result = await sendAction(GroupAction.CreateGroup, { name });
       if (!result.success) {
         toast(result.error ?? "Failed to create", "error");
-        return;
+        return null;
       }
-      setShowForm(false);
+      return (result.data as { id?: number } | undefined)?.id ?? null;
     },
     [sendAction, toast]
   );
 
-  const handleUpdateName = useCallback(
+  const rename = useCallback(
     async (id: number, name: string) => {
       const result = await sendAction(GroupAction.UpdateGroup, { id, data: { name } });
-      if (!result.success) {
-        toast(result.error ?? "Failed to update", "error");
-        return;
-      }
-      setEditingId(null);
+      if (!result.success) toast(result.error ?? "Failed to update", "error");
+      return result.success;
     },
     [sendAction, toast]
   );
 
-  const handleSetCommands = useCallback(
+  const setMembers = useCallback(
     async (id: number, commandIds: number[]) => {
       const result = await sendAction(GroupAction.SetGroupCommands, {
         id,
         data: { commandIds },
       });
       if (!result.success) toast(result.error ?? "Failed to update commands", "error");
+      return result.success;
     },
     [sendAction, toast]
   );
 
-  const handleRun = useCallback(
+  const run = useCallback(
     (id: number) => runGroupAction(id, "run", GroupAction.RunGroup, "Failed to run group"),
     [runGroupAction]
   );
 
-  const handleStop = useCallback(
+  const stop = useCallback(
     (id: number) => runGroupAction(id, "stop", GroupAction.StopGroup, "Failed to stop group"),
     [runGroupAction]
   );
 
-  const handleRestart = useCallback(
+  const restart = useCallback(
     (id: number) => runGroupAction(id, "restart", GroupAction.RestartGroup, "Failed to restart group"),
     [runGroupAction]
   );
 
-  const handleDelete = useCallback(
+  const remove = useCallback(
     async (id: number) => {
-      if (!(await confirm(`Delete group "${groupName(id)}"?`, "Delete"))) return;
+      if (!(await confirm(`Delete group "${groupName(id)}"?`, "Delete"))) return false;
       const result = await sendAction(GroupAction.DeleteGroup, { id });
       if (!result.success) toast(result.error ?? "Failed to delete", "error");
+      return result.success;
     },
     [sendAction, toast, confirm, groupName]
   );
 
-  const openCreateForm = useCallback(() => {
-    setShowForm(true);
-    setEditingId(null);
-  }, []);
-
-  const closeCreateForm = useCallback(() => setShowForm(false), []);
-
-  const setEditing = useCallback((id: number | null) => setEditingId(id), []);
-
-  const openGroupLogs = useCallback((groupRunId: number) => setLogGroupRunId(groupRunId), []);
-  const closeGroupLogs = useCallback(() => setLogGroupRunId(null), []);
-
-  return {
-    groups,
-    commandsForSelect,
-    initialLoadDone,
-    connectionError,
-    showForm,
-    editingId,
-    pending,
-    logGroupRunId,
-    openCreateForm,
-    closeCreateForm,
-    setEditing,
-    handleCreate,
-    handleUpdateName,
-    handleSetCommands,
-    handleRun,
-    handleStop,
-    handleRestart,
-    handleDelete,
-    openGroupLogs,
-    closeGroupLogs,
-  };
+  return { pending, run, stop, restart, create, rename, setMembers, remove };
 }
-
-export type UseGroupListReturn = ReturnType<typeof useGroupList>;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { CommandFormData, CommandFormProps } from "./types";
+import type { CommandFormProps } from "./types";
 import { envToEntries, entriesToEnv } from "./env-utils";
 import { EnvFields } from "./EnvFields";
 
